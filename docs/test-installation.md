@@ -7,7 +7,7 @@ This release is an isolated trial. It cannot publish calendar changes and must n
 Build the normal Dockerfile with a container engine:
 
 ```sh
-docker build -t etabli-interstice:0.1.0-test .
+docker build -t etabli-interstice:0.2.0-test .
 ```
 
 On hosts that enforce workload limits outside the Docker build daemon, run `scripts/build-prepared.sh` through the host's workload wrapper. Set `TMPDIR` to a private temporary directory and `INTERSTICE_PYTHON` to Python 3.13. The script requires `uv`, installs only hash-verified binary wheels into temporary staging and builds an image without executing dependency installation in Docker. The prepared build currently targets the build host's Linux architecture; cross-architecture output is not qualified.
@@ -36,11 +36,11 @@ The Compose stack contains the application and a separate read-only synthetic Ca
 
 No task recurrence, persisted stable plans, workload-balancing optimization, calendar writes, subscription discovery UI, advanced task editor, notifications, mobile widgets, OIDC discovery or project migration. The Focus application is unchanged; the native adapter must be implemented and device-tested separately. MCP clients requiring OAuth enrollment rather than a configured bearer header are not supported yet.
 
-The CalDAV connector requires an explicit collection URL. It does not implement account discovery, sync tokens or ETag write-back. Live iCloud and Nextcloud interoperability remains unqualified until dedicated test-account checks. High-frequency recurrence and multiple intraday recurrence times are rejected to bound expansion. No calendar snapshot is assumed to be empty after a failed refresh.
+The CalDAV polling connector requires an explicit collection URL. A separate read-only discovery helper supports credential-constrained principal/home/collection discovery. The browser does not yet expose discovery, and the connector does not implement sync tokens or ETag write-back. Live iCloud and Nextcloud interoperability remains unqualified until dedicated test-account checks. High-frequency recurrence and multiple intraday recurrence times are rejected to bound expansion. No calendar snapshot is assumed to be empty after a failed refresh.
 
-Plans are calculated from current inputs when requested; flexible work can move between reads. There is no active-timer reservation yet. The planner does not guarantee optimal packing or a wall-clock calculation deadline. API access is bounded to 1,000 tasks; this is a guard, not a verified performance capacity claim. All credentials access only this test database; roles are instance-wide, not per list.
+Plans are calculated from current inputs when requested; flexible work can move between reads. There is no active-timer reservation yet. The planner does not guarantee optimal packing. Calculations have a 30-second wall deadline, five-second CPU budget and 256 MiB address-space limit in a disposable Linux worker. One worker runs at a time; excess calculations return a retryable 503. These limits preserve availability rather than guaranteeing every workload will fit. API access is bounded to 1,000 tasks; this is a guard, not a verified performance capacity claim. All credentials access only this test database; roles are instance-wide, not per list.
 
-Browser progress buttons record individual test sessions. Focus's production session history must not be replayed against this instance. Do not use the browser button as an automatic time tracker.
+Browser progress buttons record individual test sessions. An operation is stored in a client-scoped browser outbox before sending; a lost response or reload preserves the same receipt. Web Locks serialize writes across tabs. Do not clear browser storage while an action is pending; local pending task text is not encrypted by the application. Focus's production session history must not be replayed against this instance. Do not use the browser button as an automatic time tracker.
 
 ## Model connection
 

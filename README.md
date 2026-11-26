@@ -4,7 +4,7 @@ Make room for the work that matters.
 
 Établi Interstice is a self-hosted scheduling service under development: it places tasks around calendar commitments and explains when there is too much work for the time available. **Établi Focus is the designated mobile companion**; its Interstice adapter is still pending. A browser interface provides the current test workspace.
 
-**Status: runnable 0.1.0 test container, not a production replacement.** The initial runtime supports tasks, deterministic schedule previews, deadlines, dependencies, splitting, fixed blocks, progress receipts, CalDAV/ICS reads, authenticated MCP and an optional external model connection. External calendar writes are absent by design. Recurring tasks, mobile integration, stable persisted plans, project migration and broader provider adapters remain pending. No public registry image is published yet; build from source.
+**Status: hardened 0.2.0 test container, not a production replacement.** The initial runtime supports tasks, deterministic schedule previews, deadlines, dependencies, splitting, fixed blocks, progress receipts, CalDAV/ICS reads, authenticated MCP and an optional external model connection. External calendar writes are absent by design. Recurring tasks, mobile integration, stable persisted plans, project migration and broader provider adapters remain pending. No public registry image is published yet; build from source.
 
 Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGPL-3.0-only**. The working name refers to the spaces between commitments; it is not a claim of registered trademark protection.
 
@@ -28,6 +28,7 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 | [Model connections](docs/model-connections.md) | MCP tools, external model containers and provider APIs |
 | [Container operations](docs/deployment.md) | Packaging, isolation, budgets and recovery |
 | [Delivery plan](docs/roadmap.md) | Ordered milestones and replacement gates |
+| [Production acceptance](docs/production-readiness.md) | Hardening evidence and outstanding cutover gates |
 | [Runtime audit](docs/audit-2026-11-26.md) | Findings, regression evidence and remaining gates |
 | [Test installation](docs/test-installation.md) | Build, credentials, testing and operational limits |
 | [Licensing and independence](docs/legal.md) | Rights, provenance and unresolved clearance |

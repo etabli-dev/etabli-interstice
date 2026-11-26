@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Établi Interstice · test</title><link rel="stylesheet" href="static/style.css"><script src="static/app.js" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Établi Interstice · test</title><link rel="stylesheet" href="static/style.css"><script src="static/outbox.js" defer></script><script src="static/app.js" defer></script></head>
 <body>
 <header><a class="brand" href="./">Établi <strong>Interstice</strong></a><span class="badge">TEST WORKSPACE</span><button id="logout" hidden>Sign out</button></header>
 <main>
@@ -7,6 +7,8 @@
 <p id="message" role="status" aria-live="polite"></p>
 <section id="login-panel" class="panel compact"><h2>Open your test workspace</h2><p>Use the access key supplied with this installation.</p><form id="login-form"><label for="token">Access key</label><input id="token" type="password" required autocomplete="current-password"><button type="submit">Open workspace →</button></form></section>
 <div id="workspace" hidden>
+<section id="pending-panel" class="panel" hidden><h2>Pending action</h2><p>The last action has not been confirmed. Retry sends the same receipt and cannot count it twice.</p><button id="retry-pending">Retry pending action</button></section>
+<p id="calendar-warning" class="shortage" hidden>Calendar inputs are incomplete or stale. This plan may miss commitments; refresh before relying on it.</p>
 <div class="toolbar"><div><span id="zone"></span><p id="freshness"></p></div><button id="refresh">Refresh calendars & plan</button></div>
 <div class="layout">
 <aside>
@@ -24,5 +26,5 @@
 <section class="panel" id="shortage-panel" hidden><h2>Work that needs more room</h2><div id="shortages"></div></section>
 <section class="panel"><div class="heading"><h2>Your tasks</h2><span id="task-count"></span></div><div id="tasks"></div></section>
 </div></div></div>
-</main><footer>Établi Interstice · 0.1.0-test · Independent, self-hosted planning.</footer>
+</main><footer>Établi Interstice · 0.2.0-test · Independent, self-hosted planning.</footer>
 </body></html>

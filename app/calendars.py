@@ -44,8 +44,15 @@ async def fetch(source):
                 data.extend(part)
                 if len(data) > 2_000_000:
                     raise ValueError("Calendar response exceeds test limit")
+    from .work import run_job
+    safe_source = {k: source[k] for k in ("id", "time_zone", "all_day_busy") if k in source}
+    return await asyncio.to_thread(run_job, "calendar", {
+        "data": bytes(data).decode("utf-8-sig"), "method": method, "source": safe_source})
+
+
+def decode(data, method, source):
     if method == "REPORT":
-        root = ElementTree.fromstring(bytes(data))
+        root = ElementTree.fromstring(data)
         if root.tag != "{DAV:}multistatus":
             raise ValueError("Invalid CalDAV response")
         documents = []
@@ -66,7 +73,7 @@ async def fetch(source):
         if len(documents) > 200:
             raise ValueError("Too many calendar objects for test instance")
     else:
-        documents = [bytes(data)]
+        documents = [data]
     return parse(documents, source)
 
 

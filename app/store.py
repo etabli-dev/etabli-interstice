@@ -1,13 +1,15 @@
 # Copyright 2026 R. Heller
 # SPDX-License-Identifier: AGPL-3.0-only
 import json
+import hashlib
 import sqlite3
 import uuid
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from datetime import datetime, timezone
-from .domain import Task, graph_order, schedule
+from datetime import datetime, timezone, timedelta
+from .domain import Task, graph_order
+from .work import run_job, WorkLimit
 
 
 class Conflict(ValueError):
@@ -27,8 +29,10 @@ class Store:
               CREATE INDEX IF NOT EXISTS receipts_task ON receipts(task);
               CREATE TABLE IF NOT EXISTS operations(client TEXT, key TEXT, request TEXT, result TEXT, PRIMARY KEY(client,key));
               CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY, events TEXT, synced TEXT, error TEXT);
+              CREATE TABLE IF NOT EXISTS plans(key TEXT PRIMARY KEY, body TEXT NOT NULL, expires TEXT NOT NULL);
               CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, object_id TEXT);
             ''')
+        Path(self.path).chmod(0o600)
 
     @contextmanager
     def db(self):
@@ -120,16 +124,51 @@ class Store:
             else:
                 db.execute("INSERT INTO sources VALUES(?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET events=excluded.events,synced=excluded.synced,error=NULL", (ident, json.dumps(events), datetime.now(timezone.utc).isoformat()))
 
+    def _snapshot(self, db):
+        sources = [dict(row) for row in db.execute("SELECT * FROM sources ORDER BY id")]
+        tasks = self._tasks(db)
+        digest = hashlib.sha256(json.dumps([tasks, sources, self.zone], sort_keys=True).encode()).hexdigest()
+        return tasks, sources, digest
+
     def plan(self, now=None):
+        now = now or datetime.now(timezone.utc)
         with self.db() as db:
-            sources = list(db.execute("SELECT * FROM sources"))
-            events = [e for row in sources for e in json.loads(row["events"])]
-            result = schedule(self._tasks(db), events, self.zone, now=now)
-            result["events"] = events
-            result["sources"] = [{"id": r["id"], "synced": r["synced"], "error": r["error"]} for r in sources]
-            result["mode"] = "test"
-            result["calendar_writes"] = False
-            return result
+            tasks, sources, digest = self._snapshot(db)
+            cached = db.execute("SELECT * FROM plans WHERE key=?", (digest,)).fetchone()
+            if cached and now < datetime.fromisoformat(cached["expires"]):
+                result = json.loads(cached["body"])
+            else:
+                result = None
+        events = [e for row in sources for e in json.loads(row["events"])]
+        if len(events) > 5000:
+            raise WorkLimit("Combined calendar event limit exceeded")
+        if result is None:
+            result = run_job("schedule", {"tasks": tasks, "events": events, "zone": self.zone, "now": now.isoformat()})
+            result["inputs_revision"] = digest
+            expires = min([now + timedelta(minutes=5)] +
+                          [datetime.fromisoformat(b["start"]) for b in result["blocks"]])
+            with self.db() as db:
+                if self._snapshot(db)[2] != digest:
+                    raise Conflict("Planning inputs changed; refresh the plan")
+                db.execute("DELETE FROM plans")
+                db.execute("INSERT INTO plans VALUES(?,?,?)", (digest, json.dumps(result), expires.isoformat()))
+        result["events"] = events
+        result["sources"] = [{"id": r["id"], "synced": r["synced"], "error": r["error"],
+            "stale": bool(r["error"] or not r["synced"] or
+                now - datetime.fromisoformat(r["synced"]) > timedelta(minutes=15))} for r in sources]
+        result["calendar_inputs_ready"] = all(not s["stale"] for s in result["sources"])
+        result["mode"] = "test"
+        result["calendar_writes"] = False
+        return result
+
+    def configure_sources(self, identifiers):
+        # Remove disconnected calendars and explicitly mark sources awaiting their first refresh.
+        with self.db() as db:
+            for row in db.execute("SELECT id FROM sources").fetchall():
+                if row["id"] not in identifiers:
+                    db.execute("DELETE FROM sources WHERE id=?", (row["id"],))
+            for ident in identifiers:
+                db.execute("INSERT OR IGNORE INTO sources VALUES(?,'[]',NULL,'Awaiting first refresh')", (ident,))
 
     def backup(self, target):
         with self.lock, sqlite3.connect(self.path) as source, sqlite3.connect(target) as destination:

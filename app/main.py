@@ -4,6 +4,9 @@ import asyncio
 import json
 import os
 import secrets
+import sqlite3
+import shutil
+import logging
 import time
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -21,6 +24,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from .domain import Task
 from .store import Store, Conflict
 from .calendars import fetch
+from .work import WorkLimit
 
 identity = ContextVar("identity", default=None)
 
@@ -34,7 +38,7 @@ class ProposalRequest(BaseModel):
 
 
 def credential_matches(candidate, token):
-    return secrets.compare_digest(candidate.encode("utf-8"), token.encode("utf-8"))
+    return secrets.compare_digest(candidate.encode("utf-8", "surrogatepass"), token.encode("utf-8", "surrogatepass"))
 
 
 class Progress(BaseModel):
@@ -48,6 +52,10 @@ def create_app(config=None):
     zone = cfg.get("zone", os.environ.get("INTERSTICE_ZONE", "Europe/Berlin"))
     public = cfg.get("public_url", os.environ.get("INTERSTICE_PUBLIC_URL", "http://localhost:8095"))
     parsed = urlsplit(public)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise RuntimeError("Invalid public URL")
+    if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1", "testserver"):
+        raise RuntimeError("Public access requires HTTPS")
     origin = f"{parsed.scheme}://{parsed.netloc}"
     prefix = parsed.path.rstrip("/")
     token_file = cfg.get("tokens_file", os.environ.get("INTERSTICE_TOKENS_FILE", "/run/secrets/tokens.json"))
@@ -62,8 +70,9 @@ def create_app(config=None):
     store = Store(data / "interstice.sqlite", zone)
     sources_file = cfg.get("sources_file", os.environ.get("INTERSTICE_SOURCES_FILE", ""))
     sources = json.loads(Path(sources_file).read_text()) if sources_file else []
-    if len(sources) > 10 or len({s["id"] for s in sources}) != len(sources):
+    if len(sources) > 32 or len({s["id"] for s in sources}) != len(sources):
         raise RuntimeError("Invalid sources configuration")
+    store.configure_sources([s["id"] for s in sources])
     gateway = cfg.get("model_url", os.environ.get("INTERSTICE_MODEL_URL", ""))
     model = cfg.get("model", os.environ.get("INTERSTICE_MODEL", ""))
     model_protocol = cfg.get("model_protocol", os.environ.get("INTERSTICE_MODEL_PROTOCOL", "ollama"))
@@ -84,10 +93,11 @@ def create_app(config=None):
         async with sync_lock:
             for source in sources:
                 try:
-                    store.source_result(source["id"], events=await fetch(source))
+                    events = await fetch(source)
+                    await asyncio.to_thread(store.source_result, source["id"], events=events)
                 except Exception:
                     # Exception strings may contain credential-bearing URLs.
-                    store.source_result(source["id"], error="Refresh failed; prior snapshot retained")
+                    await asyncio.to_thread(store.source_result, source["id"], error="Refresh failed; prior snapshot retained")
 
     async def polling():
         while True:
@@ -148,9 +158,19 @@ def create_app(config=None):
             except asyncio.CancelledError:
                 pass
 
-    app = FastAPI(title="Établi Interstice test", version="0.1.0-test", root_path=prefix,
+    app = FastAPI(title="Établi Interstice test", version="0.2.0-test",
                   lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
+    metrics = {"requests": 0, "server_errors": 0}
+
+    @app.exception_handler(sqlite3.OperationalError)
+    async def storage_unavailable(request, exc):
+        return JSONResponse({"detail": "Storage unavailable; preserve the operation receipt and retry"}, status_code=503,
+                            headers={"Retry-After": "5"})
+
+    @app.exception_handler(WorkLimit)
+    async def work_limited(request, exc):
+        return JSONResponse({"detail": str(exc)}, status_code=503, headers={"Retry-After": "5"})
 
     @app.exception_handler(ValueError)
     async def bad_input(request, exc):
@@ -167,6 +187,7 @@ def create_app(config=None):
 
     @app.middleware("http")
     async def security(request, call_next):
+        request.scope["root_path"] = prefix
         # A stripping reverse proxy removes the prefix from path. Mounted ASGI
         # applications need the full path as well as root_path to resolve assets.
         if prefix and not request.scope["path"].startswith(prefix + "/"):
@@ -180,8 +201,11 @@ def create_app(config=None):
             path = path[len(prefix):]
         ip = request.client.host if request.client else "unknown"
         minute = int(time.monotonic() // 60)
-        if len(limits) > 10000:
-            limits.clear()
+        for old in list(limits):
+            if old[1] < minute:
+                limits.pop(old, None)
+        if len(limits) >= 10000 and (ip, minute) not in limits:
+            return JSONResponse({"detail": "Request capacity reached"}, status_code=429)
         key = (ip, minute)
         limits[key] = limits.get(key, 0) + 1
         if limits[key] > 240:
@@ -194,10 +218,14 @@ def create_app(config=None):
             return JSONResponse({"detail": "Request too large"}, status_code=413)
         if request.method in ("POST", "PATCH", "PUT"):
             body = bytearray()
-            async for chunk in request.stream():
-                body.extend(chunk)
-                if len(body) > 100000:
-                    return JSONResponse({"detail": "Request too large"}, status_code=413)
+            try:
+                async with asyncio.timeout(15):
+                    async for chunk in request.stream():
+                        body.extend(chunk)
+                        if len(body) > 100000:
+                            return JSONResponse({"detail": "Request too large"}, status_code=413)
+            except TimeoutError:
+                return JSONResponse({"detail": "Request body deadline exceeded"}, status_code=408)
             request._body = bytes(body)
         caller = None
         auth = request.headers.get("authorization", "")
@@ -224,6 +252,24 @@ def create_app(config=None):
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         return response
 
+    @app.middleware("http")
+    async def observation(request, call_next):
+        request_id = secrets.token_hex(12)
+        started = time.monotonic()
+        metrics["requests"] += 1
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["X-Request-ID"] = request_id
+            response.headers["Cache-Control"] = "no-store"
+            return response
+        finally:
+            if status_code >= 500:
+                metrics["server_errors"] += 1
+            logging.getLogger("uvicorn.error").info(json.dumps({"event": "request", "request_id": request_id,
+                "status": status_code, "duration_ms": round((time.monotonic()-started)*1000)}))
+
     @app.post("/login")
     async def login(request: Request, body: Login):
         if request.headers.get("origin") != origin:
@@ -233,8 +279,11 @@ def create_app(config=None):
         if not caller:
             await asyncio.sleep(0.3)
             raise HTTPException(401, "Invalid credential")
-        if len(sessions) > 100:
-            sessions.clear()
+        for key in list(sessions):
+            if sessions[key][1] <= time.time():
+                sessions.pop(key, None)
+        if len(sessions) >= 100:
+            raise HTTPException(429, "Session capacity reached; sign out another session")
         session = secrets.token_urlsafe(32)
         sessions[session] = (caller, time.time() + 28800)
         response = JSONResponse({"ok": True})
@@ -249,17 +298,22 @@ def create_app(config=None):
         return response
 
     @app.get("/health/live")
+    def live():
+        return {"status": "ok"}
+
     @app.get("/health/ready")
     def health():
+        if shutil.disk_usage(data).free < 64 * 1024 * 1024:
+            raise HTTPException(503, "Storage capacity low")
         with store.db() as db:
             db.execute("SELECT 1")
-        return {"status": "ok", "mode": "test", "calendar_writes": False, "version": "0.1.0-test"}
+        return {"status": "ok", "mode": "test", "calendar_writes": False, "version": "0.2.0-test"}
 
     @app.get("/api/v1/status")
     def status():
-        return {"mode": "test", "calendar_writes": False, "role": identity.get()["role"], "time_zone": zone,
+        return {"mode": "test", "calendar_writes": False, "role": identity.get()["role"], "client_id": identity.get()["id"], "time_zone": zone, "metrics": dict(metrics),
                 "model_configured": bool(gateway and model), "model": model or None,
-                "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.1.0-test",
+                "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.2.0-test",
                 "limitations": ["No production calendar writes", "No recurring tasks yet", "Focus adapter not installed", "Preview recalculates from current inputs"]}
 
     @app.get("/api/v1/tasks")
@@ -271,7 +325,7 @@ def create_app(config=None):
         return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "create", task.model_dump(mode="json"))
 
     @app.patch("/api/v1/tasks/{ident}")
-    async def update(ident: str, request: Request, body: dict):
+    def update(ident: str, request: Request, body: dict):
         return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "update", body, ident=ident, revision=int(request.headers.get("If-Match", "-1")))
 
     @app.post("/api/v1/tasks/{ident}/progress")
@@ -293,8 +347,10 @@ def create_app(config=None):
     @app.post("/api/v1/calendars/refresh")
     async def sync():
         require_write()
+        if sync_lock.locked():
+            raise WorkLimit("Calendar refresh already running")
         await sync_sources()
-        return store.plan()["sources"]
+        return (await asyncio.to_thread(store.plan))["sources"]
 
     @app.post("/api/v1/model/propose")
     async def propose(body: ProposalRequest):

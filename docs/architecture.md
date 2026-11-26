@@ -2,7 +2,7 @@
 
 ## One product, one application image
 
-The initial runtime uses Python with FastAPI, a deterministic scheduling module and a small static browser client. Package the API, static client and background jobs in one application image. SQLite on a local persistent volume is the initial database; a single writer coordinates mutations. Durable task mutation receipts are implemented. A database-backed calendar outbox and persisted plan revisions are later work; the test runtime has no external calendar write path.
+The initial runtime uses Python with FastAPI, a deterministic scheduling module and a small static browser client. Package the API, static client and background jobs in one application image. SQLite on a local persistent volume is the initial database; a single writer coordinates mutations. Durable task mutation receipts are implemented. Persisted input-versioned preview snapshots are implemented. A database-backed calendar publication outbox remains later work; the test runtime has no external calendar write path.
 
 This favors a small personal deployment. Revisit PostgreSQL and separate workers for multiple replicas or sustained multi-user contention. Do not put the SQLite database on a network share.
 
@@ -26,7 +26,7 @@ flowchart TD
 
 ## Scheduling engine
 
-Current test implementation: bounded eight-week first-fit previews, computed on read. It does not yet preserve flexible blocks between previews, enforce a wall-clock solver deadline or implement recurring tasks. The remaining paragraphs describe the target architecture rather than completed behavior.
+Current implementation: eight-week first-fit previews are computed in a disposable worker with CPU, memory and wall-clock limits, checked by an independent constraint validator, and persisted against the input revision. Unchanged previews are reused until the next block starts or five minutes elapse. Input changes invalidate the snapshot. This is not a stable incremental replan or an active-timer reservation, and recurring tasks remain unimplemented. The remaining paragraphs describe the target architecture rather than completed behavior.
 
 Use minute-based intervals with configurable rounding and explicit handling of any remainder. Expand recurring events only within the planning horizon, with bounded lookback for overlapping events. Subtract busy intervals and buffers from allowed hours. Topologically order dependencies; prioritize urgency and priority, then fit remaining effort into admissible windows.
 
