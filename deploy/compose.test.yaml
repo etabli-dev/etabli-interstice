@@ -7,7 +7,8 @@ services:
     user: "10005:10005"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    cpus: 0.5
+    cpus: 1
+    cpu_shares: 4096
     mem_limit: 512m
     pids_limit: 80
     tmpfs: ["/tmp:size=32m,mode=1777"]

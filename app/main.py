@@ -47,6 +47,8 @@ class Progress(BaseModel):
 
 
 def create_app(config=None):
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     cfg = dict(config or {})
     data = Path(cfg.get("data", os.environ.get("INTERSTICE_DATA", "/data")))
     zone = cfg.get("zone", os.environ.get("INTERSTICE_ZONE", "Europe/Berlin"))
@@ -95,9 +97,9 @@ def create_app(config=None):
                 try:
                     events = await fetch(source)
                     await asyncio.to_thread(store.source_result, source["id"], events=events)
-                except Exception:
-                    # Exception strings may contain credential-bearing URLs.
-                    await asyncio.to_thread(store.source_result, source["id"], error="Refresh failed; prior snapshot retained")
+                except Exception as exc:
+                    # Only the exception class is logged; messages can contain private URLs.
+                    await asyncio.to_thread(store.source_result, source["id"], error=f"Refresh failed ({type(exc).__name__}); prior snapshot retained")
 
     async def polling():
         while True:
