@@ -127,10 +127,11 @@ class Store:
     def _snapshot(self, db):
         sources = [dict(row) for row in db.execute("SELECT * FROM sources ORDER BY id")]
         tasks = self._tasks(db)
-        digest = hashlib.sha256(json.dumps([tasks, sources, self.zone], sort_keys=True).encode()).hexdigest()
+        digest = hashlib.sha256(json.dumps([tasks, [{"id": s["id"], "events": s["events"]} for s in sources], self.zone], sort_keys=True).encode()).hexdigest()
         return tasks, sources, digest
 
     def plan(self, now=None):
+        live = now is None
         now = now or datetime.now(timezone.utc)
         with self.db() as db:
             tasks, sources, digest = self._snapshot(db)
@@ -143,7 +144,7 @@ class Store:
         if len(events) > 5000:
             raise WorkLimit("Combined calendar event limit exceeded")
         if result is None:
-            result = run_job("schedule", {"tasks": tasks, "events": events, "zone": self.zone, "now": now.isoformat()})
+            result = run_job("schedule", {"tasks": tasks, "events": events, "zone": self.zone, "now": None if live else now.isoformat()}, wait_timeout=60)
             result["inputs_revision"] = digest
             expires = min([now + timedelta(minutes=5)] +
                           [datetime.fromisoformat(b["start"]) for b in result["blocks"]])

@@ -16,7 +16,7 @@ def main():
     from .calendars import decode
     from .domain import schedule
     from .validation import validate_plan
-    from datetime import datetime
+    from datetime import datetime, timezone
     usage = resource.getrusage(resource.RUSAGE_SELF)
     used = math.ceil(usage.ru_utime + usage.ru_stime)
     budget = 15 if request["operation"] == "calendar" else 5
@@ -26,7 +26,7 @@ def main():
             result = decode(**request["payload"])
         elif request["operation"] == "schedule":
             payload = request["payload"]
-            payload["now"] = datetime.fromisoformat(payload["now"])
+            payload["now"] = datetime.fromisoformat(payload["now"]) if payload["now"] else datetime.now(timezone.utc)
             result = schedule(**payload)
             validate_plan(payload["tasks"], payload["events"], result)
         else:

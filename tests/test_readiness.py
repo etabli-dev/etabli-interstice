@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 import sqlite3
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 from app.domain import Task, schedule
@@ -57,6 +58,16 @@ class InvariantTests(unittest.TestCase):
         result=run_job('schedule',{'tasks':[],'events':[],'now':NOW.isoformat()})
         self.assertEqual(result['blocks'],[])
 
+    def test_bounded_wait_acquires_released_worker(self):
+        _slots.acquire()
+        timer = threading.Timer(0.05, _slots.release)
+        timer.start()
+        try:
+            result = run_job('schedule', {'tasks': [], 'events': [], 'now': None}, wait_timeout=1)
+            self.assertEqual(result['blocks'], [])
+        finally:
+            timer.join()
+
     def test_invalid_worker_input_is_sanitized(self):
         with self.assertRaisesRegex(ValueError,'Invalid calendar'):
             run_job('calendar',{'data':'private invalid text','method':'GET','source':{'id':'test'}})
@@ -100,6 +111,19 @@ class DurabilityTests(unittest.TestCase):
         with patch('app.store.run_job',side_effect=calculate):
             with self.assertRaises(Conflict):
                 self.store.plan(now=NOW)
+
+    def test_refresh_metadata_preserves_plan_but_updates_readiness(self):
+        self.store.configure_sources(['one'])
+        self.store.source_result('one', [])
+        first = self.store.plan(now=NOW)
+        self.store.source_result('one', error='temporary failure')
+        with patch('app.store.run_job', side_effect=AssertionError('metadata must not recompute')):
+            failed = self.store.plan(now=NOW)
+            self.assertFalse(failed['calendar_inputs_ready'])
+            self.store.source_result('one', [])
+            recovered = self.store.plan(now=NOW)
+        self.assertTrue(recovered['calendar_inputs_ready'])
+        self.assertEqual(first['inputs_revision'], recovered['inputs_revision'])
 
     def test_source_configuration_and_stale_state(self):
         self.store.configure_sources(['one'])

@@ -49,7 +49,7 @@ async def fetch(source):
     from .work import run_job
     safe_source = {k: source[k] for k in ("id", "time_zone", "all_day_busy") if k in source}
     return await asyncio.to_thread(run_job, "calendar", {
-        "data": bytes(data).decode("utf-8-sig"), "method": method, "source": safe_source}, timeout=60)
+        "data": bytes(data).decode("utf-8-sig"), "method": method, "source": safe_source}, timeout=60, wait_timeout=60)
 
 
 def decode(data, method, source):

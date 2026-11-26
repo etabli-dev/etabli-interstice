@@ -15,8 +15,8 @@ class WorkLimit(RuntimeError):
     pass
 
 
-def run_job(operation, payload, timeout=30):
-    if not _slots.acquire(blocking=False):
+def run_job(operation, payload, timeout=30, wait_timeout=0):
+    if not _slots.acquire(timeout=wait_timeout):
         raise WorkLimit("Calculation busy; retry shortly")
     try:
         environment = {k: v for k, v in os.environ.items() if k in ("PATH", "TMPDIR", "LANG")}
