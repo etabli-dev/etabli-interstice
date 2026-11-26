@@ -33,6 +33,15 @@ class PlannerTests(unittest.TestCase):
         result = schedule([task("a", minutes=240, due="2026-11-23T10:00:00+00:00")], [], now=NOW)
         self.assertEqual(result["shortages"][0]["minutes"], 120)
 
+    def test_split_does_not_strand_a_subminimum_remainder(self):
+        event={"start":"2026-11-23T08:30:00+00:00","end":"2026-11-23T09:00:00+00:00"}
+        result=schedule([task("a",minutes=50,min_block=30)],[event],now=NOW)
+        self.assertEqual([b["minutes"] for b in result["blocks"]],[50])
+
+    def test_deadline_order_compares_instants_across_offsets(self):
+        result=schedule([task("later",due="2026-11-23T10:00:00+00:00"),task("earlier",due="2026-11-23T10:30:00+02:00")],[],now=NOW)
+        self.assertEqual(result["blocks"][0]["task_id"],"earlier")
+
     def test_dependency_order_and_cycle(self):
         result = schedule([task("a", dependencies=["b"], priority=3), task("b")], [], now=NOW)
         self.assertEqual([b["task_id"] for b in result["blocks"]], ["b", "a"])

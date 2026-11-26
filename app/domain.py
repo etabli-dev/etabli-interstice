@@ -67,7 +67,7 @@ def graph_order(tasks):
         visited.add(ident)
         output.append(t)
 
-    for t in sorted(tasks, key=lambda x: (-x["priority"], x["due"] or "9999", x["id"])):
+    for t in sorted(tasks, key=lambda x: (-x["priority"], instant(x["due"]).timestamp() if x["due"] else float("inf"), x["id"])):
         visit(t)
     return output
 
@@ -120,6 +120,7 @@ def schedule(tasks, events, zone="Europe/Berlin", now=None, days=56):
             continue
         earliest = max([now, instant(t["earliest"]) if t["earliest"] else now] + [finished[d] for d in t["dependencies"]])
         latest = min(end, instant(t["due"]) if t["due"] else end)
+        minimum = min(t["min_block"], remaining)
         for offset in range(days + 1):
             day = now.astimezone(tz).date() + timedelta(days=offset)
             if day.weekday() not in t["weekdays"]:
@@ -142,7 +143,9 @@ def schedule(tasks, events, zone="Europe/Berlin", now=None, days=56):
             for a, b in gaps:
                 capacity = int((b - a).total_seconds() // 60)
                 take = min(capacity, remaining)
-                if take <= 0 or (not t["split"] and take < remaining) or (take < min(t["min_block"], remaining)):
+                if take < remaining and remaining - take < minimum:
+                    take = remaining - minimum
+                if take <= 0 or (not t["split"] and take < remaining) or take < minimum:
                     continue
                 last = reserve(t, a, take)
                 remaining -= take
