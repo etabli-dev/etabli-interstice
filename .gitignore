@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+secrets/
+data/
+backups/
+private/
+*.sqlite*
+*.db
+*.ics
+*.pem
+*.key
+__pycache__/
+.venv/
+node_modules/
+dist/
