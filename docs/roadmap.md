@@ -10,6 +10,7 @@ All milestones are pending. This repository is a specification, not a finished r
 | 3 | Scheduler and calendar projection | Constraint invariants, overload reporting, stable replans, uncertain-write recovery |
 | 4 | Focus companion adapter and views | iOS/Android device acceptance, offline receipts, explicit completion, reminders |
 | 5 | Project and follow-up adapters | Existing caller contract tests, preserved mappings, duplicate prevention |
+| 5a | MCP endpoint and optional model gateway | External-client contract tests; local-container and remote-API tests; scope, failure and proposal validation |
 | 6 | Shadow operation and cutover | 7–14 days of comparison, reconciled export, one writer, rollback rehearsal |
 | 7 | Broader ecosystem and full coverage | Additional providers, task adapters, mobile widgets and all remaining requirements verified |
 
@@ -24,3 +25,5 @@ Required before retiring the old service: preserved task data and history; verif
 Use property-based scheduler tests for non-overlap, bounds and conserved remaining effort. Use synthetic calendar fixtures for recurrence exceptions, ambiguous time zones and large feeds. Inject timeouts before and after provider writes, token invalidation, ETag conflicts, duplicate webhooks and interrupted database transactions.
 
 Mobile acceptance must include app suspension, denied notification permissions, offline work, device restore and retries. Measure actual latency and resource usage on the intended host before enabling background publication.
+
+Model integration acceptance includes denied tools, prompt injection in imported text, invalid structured output, ambiguous write retries, budget exhaustion, endpoint failure and disabled remote egress. The scheduler and Focus timer must continue working when model access is unavailable.

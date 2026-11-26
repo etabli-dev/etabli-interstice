@@ -15,6 +15,7 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 - Review an eight-week plan, keep fixed appointments intact and recalculate unfinished work.
 - Open [Établi Focus](https://github.com/etabli-dev/etabli-focus) on your phone to see what is next, start focused work and report progress.
 - Retain your project manager and automation tools through versioned APIs and an optional MCP adapter.
+- Connect an external model client over MCP, or configure a model API in another container or at a remote provider for natural-language planning.
 - Run one application container with persistent storage, behind your existing HTTPS proxy.
 
 ## Design documents
@@ -24,6 +25,7 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 | [Product requirements](docs/requirements.md) | Functional scope and acceptance criteria |
 | [Architecture](docs/architecture.md) | Scheduling, data model, sync and API |
 | [Integrations and migration](docs/integrations.md) | Focus companion, calendars, projects and cutover |
+| [Model connections](docs/model-connections.md) | MCP tools, external model containers and provider APIs |
 | [Container operations](docs/deployment.md) | Packaging, isolation, budgets and recovery |
 | [Delivery plan](docs/roadmap.md) | Ordered milestones and replacement gates |
 | [Licensing and independence](docs/legal.md) | Rights, provenance and unresolved clearance |

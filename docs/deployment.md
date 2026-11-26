@@ -16,6 +16,8 @@ Configuration includes public origin, IANA time zone, data path, authentication 
 
 Use mounted secret files or a secret manager. Encrypt stored provider credentials with a separately backed-up key. Restrict task/calendar access per client and calendar; revoke devices independently. Source code availability does not make private account data public.
 
+Model support is opt-in: configure endpoint, protocol adapter, model identifier, secret-file reference, permitted data scope, timeout, concurrency and token/cost budgets. A separate model container joins only an explicitly selected private network; it is not bundled into the application image. Remote model APIs require HTTPS. Private-network HTTP requires an explicit administrator setting and isolated routing. Never fall back from a local model to a remote provider without explicit configuration. Model memory/CPU/GPU requirements are outside the application sizing budget. See [connection boundaries](model-connections.md).
+
 Expose liveness independently from calendar-provider availability. Readiness checks database health and migrations; provider failures appear as degraded integration status. Record queue depth, last successful sync, oldest uncertain operation, scheduler duration, deadline shortage, memory and backup age without task titles.
 
 ## Backup and recovery

@@ -21,6 +21,7 @@ The service must run independently of proprietary scheduling services. Standards
 | Interface | Day, three-day, rolling-week, week and list views; deadline indicators; custom colors; dark mode |
 | Mobile | Focus companion: tasks, schedule, progress, reminders, offline cache and widgets |
 | Interoperability | CalDAV, iCloud, Nextcloud, ICS subscriptions; REST, MCP, webhook automation |
+| Model connections | External MCP clients; configurable local-container or remote model API; scoped proposals and validated changes |
 | Broader adapters | Google/Outlook calendars; Todoist, Google Tasks, Microsoft To Do; Apple Reminders import |
 
 Public category benchmark: [FlowSavvy feature overview](https://flowsavvy.app/pricing), reviewed 2026-11-26. This table specifies independently implemented behavior; it does not claim current parity or prescribe a copied interface. Provider adapters outside CalDAV are later work, not silently omitted from the broader coverage target.

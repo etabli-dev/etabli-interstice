@@ -12,6 +12,10 @@ flowchart TD
   W[Browser planner] --> H
   H --> A[Versioned API]
   M[Project and automation adapters] --> A
+  X[External MCP client] --> T[Authenticated MCP endpoint]
+  T --> A
+  A --> G[Optional model gateway]
+  G --> L[External model container or provider API]
   A --> D[(Tasks, plans, receipts, queue)]
   D --> S[Bounded scheduler]
   S --> D
@@ -59,6 +63,8 @@ Store instants in UTC together with the original IANA zone and local recurrence 
 - `GET /health/live`, `GET /health/ready`, authenticated diagnostics and source-version endpoint.
 
 Bind idempotency keys to authenticated caller, route and request hash. Reusing a key with different content is an error. Use explicit patch semantics. Webhooks carry signed event IDs and monotonic versions; consumers deduplicate them. MCP is an optional adapter over this API, never a privileged bypass.
+
+The container must offer an enableable MCP endpoint for external clients and an optional outbound model gateway for Focus/web natural-language interactions. These are separate connection directions. Models produce structured proposals; the deterministic scheduler and domain API remain responsible for constraints and committed changes. See [model connections](model-connections.md).
 
 ## Sync correctness
 
