@@ -1,5 +1,6 @@
 # Copyright 2026 R. Heller
 # SPDX-License-Identifier: AGPL-3.0-only
+import asyncio
 from datetime import datetime, date, time, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -34,7 +35,7 @@ async def fetch(source):
     if source.get("password_file"):
         auth = (source["username"], Path(source["password_file"]).read_text().strip())
     async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
-        async with client.stream(method, url, headers=headers, content=body, auth=auth) as response:
+        async with asyncio.timeout(30), client.stream(method, url, headers=headers, content=body, auth=auth) as response:
             response.raise_for_status()
             if response.status_code not in (200, 207):
                 raise ValueError("Unexpected calendar response")
@@ -49,12 +50,19 @@ async def fetch(source):
             raise ValueError("Invalid CalDAV response")
         documents = []
         for item in root.findall("{DAV:}response"):
-            for propstat in item.findall("{DAV:}propstat"):
+            propstats = item.findall("{DAV:}propstat")
+            if item.find("{DAV:}status") is not None or not propstats:
+                raise ValueError("Incomplete CalDAV response; retaining prior snapshot")
+            found_data = False
+            for propstat in propstats:
                 if " 200 " not in propstat.findtext("{DAV:}status", ""):
                     raise ValueError("Partial CalDAV failure; retaining prior snapshot")
                 node = propstat.find("{DAV:}prop/{urn:ietf:params:xml:ns:caldav}calendar-data")
                 if node is not None and node.text:
                     documents.append(node.text)
+                    found_data = True
+            if not found_data:
+                raise ValueError("Missing calendar data; retaining prior snapshot")
         if len(documents) > 200:
             raise ValueError("Too many calendar objects for test instance")
     else:
@@ -89,12 +97,12 @@ def parse(documents, source, now=None):
                 start = start.replace(tzinfo=tz)
             if end.tzinfo is None:
                 end = end.replace(tzinfo=tz)
-            if end <= start:
+            if end < start:
                 raise ValueError("Invalid event interval")
             events.append({"id": str(event.get("UID", "")), "source": source["id"],
                            "title": str(event.get("SUMMARY", "Busy"))[:300],
                            "start": start.astimezone(timezone.utc).isoformat(), "end": end.astimezone(timezone.utc).isoformat(),
-                           "busy": str(event.get("TRANSP", "OPAQUE")) != "TRANSPARENT" and (not all_day or source.get("all_day_busy", True))})
+                           "busy": end > start and str(event.get("TRANSP", "OPAQUE")).upper() != "TRANSPARENT" and (not all_day or source.get("all_day_busy", True))})
             if len(events) > 5000:
                 raise ValueError("Expanded calendar exceeds test limit")
     return events

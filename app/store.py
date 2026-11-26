@@ -24,6 +24,7 @@ class Store:
               PRAGMA journal_mode=WAL;
               CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, body TEXT NOT NULL, revision INTEGER NOT NULL);
               CREATE TABLE IF NOT EXISTS receipts(client TEXT, session TEXT, task TEXT, minutes INTEGER, PRIMARY KEY(client,session));
+              CREATE INDEX IF NOT EXISTS receipts_task ON receipts(task);
               CREATE TABLE IF NOT EXISTS operations(client TEXT, key TEXT, request TEXT, result TEXT, PRIMARY KEY(client,key));
               CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY, events TEXT, synced TEXT, error TEXT);
               CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, object_id TEXT);
@@ -45,9 +46,10 @@ class Store:
                 db.close()
 
     def _tasks(self, db):
-        return [dict(json.loads(r["body"]), id=r["id"], revision=r["revision"],
-                     progress=db.execute("SELECT COALESCE(SUM(minutes),0) FROM receipts WHERE task=?", (r["id"],)).fetchone()[0])
-                for r in db.execute("SELECT * FROM tasks ORDER BY id")]
+        return [dict(json.loads(r["body"]), id=r["id"], revision=r["revision"], progress=r["progress"])
+                for r in db.execute("""SELECT tasks.*, COALESCE(p.minutes, 0) AS progress FROM tasks
+                    LEFT JOIN (SELECT task, SUM(minutes) AS minutes FROM receipts GROUP BY task) p
+                    ON tasks.id=p.task ORDER BY tasks.id""")]
 
     def tasks(self):
         with self.db() as db:

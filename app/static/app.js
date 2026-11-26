@@ -15,8 +15,8 @@ const daykey = date => new Intl.DateTimeFormat('en-CA',{timeZone:zone, year:'num
 async function load() {
   const status = await api('api/v1/status'); zone=status.time_zone;
   $('zone').textContent=`Planning in ${zone} · external calendar writes disabled`;
-  $('model-status').textContent=status.model_configured ? `Connected model: ${status.model}` : 'No model configured';
-  $('model-form').hidden=!status.model_configured || status.role!=='admin'; $('task-form').hidden=status.role!=='admin';
+  $('model-status').textContent=status.model_configured ? `Configured model (availability unverified): ${status.model}` : 'No model configured';
+  $('model-form').hidden=!status.model_configured || status.role!=='admin'; $('task-form').hidden=status.role!=='admin'; $('refresh').hidden=status.role!=='admin';
   $('workspace').hidden=false; $('login-panel').hidden=true; $('logout').hidden=false;
   const [tasks,plan]=await Promise.all([api('api/v1/tasks'),api('api/v1/schedule')]);
   $('freshness').textContent=plan.sources.map(s=>`${s.id}: ${s.error || (s.synced ? 'updated '+new Date(s.synced).toLocaleTimeString() : 'awaiting first refresh')}`).join(' · ') || 'No calendar sources configured';

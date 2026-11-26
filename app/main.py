@@ -25,6 +25,18 @@ from .calendars import fetch
 identity = ContextVar("identity", default=None)
 
 
+class Login(BaseModel):
+    token: str = Field(max_length=1000)
+
+
+class ProposalRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=3000)
+
+
+def credential_matches(candidate, token):
+    return secrets.compare_digest(candidate.encode("utf-8"), token.encode("utf-8"))
+
+
 class Progress(BaseModel):
     session_id: str = Field(min_length=1, max_length=150)
     minutes: int = Field(ge=0, le=10080, strict=True)
@@ -45,6 +57,8 @@ def create_app(config=None):
             raise RuntimeError("Invalid client credential configuration")
     if len({c["id"] for c in clients}) != len(clients):
         raise RuntimeError("Duplicate client identities")
+    if len({c["token"] for c in clients}) != len(clients):
+        raise RuntimeError("Duplicate client credentials")
     store = Store(data / "interstice.sqlite", zone)
     sources_file = cfg.get("sources_file", os.environ.get("INTERSTICE_SOURCES_FILE", ""))
     sources = json.loads(Path(sources_file).read_text()) if sources_file else []
@@ -189,7 +203,7 @@ def create_app(config=None):
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             candidate = auth[7:]
-            caller = next((c for c in clients if secrets.compare_digest(candidate, c["token"])), None)
+            caller = next((c for c in clients if credential_matches(candidate, c["token"])), None)
         elif path != "/mcp":
             session = sessions.get(request.cookies.get("interstice_session", ""))
             if session and session[1] > time.time():
@@ -211,14 +225,11 @@ def create_app(config=None):
         return response
 
     @app.post("/login")
-    async def login(request: Request):
+    async def login(request: Request, body: Login):
         if request.headers.get("origin") != origin:
             raise HTTPException(403, "Origin required")
-        body = await request.json()
-        value = body.get("token", "")
-        if not isinstance(value, str):
-            raise HTTPException(401, "Invalid credential")
-        caller = next((c for c in clients if secrets.compare_digest(value, c["token"])), None)
+        value = body.token
+        caller = next((c for c in clients if credential_matches(value, c["token"])), None)
         if not caller:
             await asyncio.sleep(0.3)
             raise HTTPException(401, "Invalid credential")
@@ -260,8 +271,7 @@ def create_app(config=None):
         return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "create", task.model_dump(mode="json"))
 
     @app.patch("/api/v1/tasks/{ident}")
-    async def update(ident: str, request: Request):
-        body = await request.json()
+    async def update(ident: str, request: Request, body: dict):
         return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "update", body, ident=ident, revision=int(request.headers.get("If-Match", "-1")))
 
     @app.post("/api/v1/tasks/{ident}/progress")
@@ -287,14 +297,11 @@ def create_app(config=None):
         return store.plan()["sources"]
 
     @app.post("/api/v1/model/propose")
-    async def propose(request: Request):
+    async def propose(body: ProposalRequest):
         require_write()
         if not gateway or not model:
             raise HTTPException(503, "No model endpoint configured")
-        body = await request.json()
-        text = body.get("text", "")
-        if not isinstance(text, str) or not 1 <= len(text) <= 3000:
-            raise HTTPException(422, "Enter a request of 1–3000 characters")
+        text = body.text
         if model_lock.locked() or time.monotonic() - last_model[0] < 15:
             raise HTTPException(429, "Model busy; try again shortly")
         async with model_lock:
@@ -329,6 +336,8 @@ def create_app(config=None):
                         output = json.loads(raw)
                 content = output["message"]["content"] if model_protocol == "ollama" else output["choices"][0]["message"]["content"]
                 draft = Task.model_validate(json.loads(content)).model_dump(mode="json")
+            except (TimeoutError, httpx.TimeoutException):
+                raise HTTPException(504, "Model timed out; no task was created")
             except Exception:
                 raise HTTPException(502, "Model unavailable or returned invalid task data; no task was created")
             return {"proposal": draft, "applied": False, "model": model}

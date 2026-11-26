@@ -52,23 +52,27 @@ def graph_order(tasks):
     by_id = {t["id"]: t for t in tasks}
     visiting, visited, output = set(), set(), []
 
-    def visit(t):
-        ident = t["id"]
-        if ident in visiting:
-            raise ValueError("Dependency cycle")
-        if ident in visited:
-            return
-        visiting.add(ident)
-        for predecessor in t["dependencies"]:
-            if predecessor not in by_id:
-                raise ValueError("Unknown dependency")
-            visit(by_id[predecessor])
-        visiting.remove(ident)
-        visited.add(ident)
-        output.append(t)
-
-    for t in sorted(tasks, key=lambda x: (-x["priority"], instant(x["due"]).timestamp() if x["due"] else float("inf"), x["id"])):
-        visit(t)
+    # An explicit stack supports the full task limit without Python recursion.
+    for root in sorted(tasks, key=lambda x: (-x["priority"], instant(x["due"]).timestamp() if x["due"] else float("inf"), x["id"])):
+        stack = [(root, False)]
+        while stack:
+            t, expanded = stack.pop()
+            ident = t["id"]
+            if expanded:
+                visiting.remove(ident)
+                visited.add(ident)
+                output.append(t)
+                continue
+            if ident in visited:
+                continue
+            if ident in visiting:
+                raise ValueError("Dependency cycle")
+            visiting.add(ident)
+            stack.append((t, True))
+            for predecessor in reversed(t["dependencies"]):
+                if predecessor not in by_id:
+                    raise ValueError("Unknown dependency")
+                stack.append((by_id[predecessor], False))
     return output
 
 

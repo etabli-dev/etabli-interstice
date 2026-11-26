@@ -4,13 +4,16 @@ import json
 import tempfile
 import unittest
 import uuid
+import asyncio
+import httpx
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from fastapi.testclient import TestClient
-from app.domain import Task, schedule
+from app.domain import Task, schedule, graph_order
 from app.store import Store, Conflict
 from app.main import create_app
-from app.calendars import parse
+from app.calendars import parse, fetch
 
 NOW = datetime(2026, 11, 23, 7, 59, tzinfo=timezone.utc)
 
@@ -71,6 +74,17 @@ class PlannerTests(unittest.TestCase):
         result = schedule([task("a", weekdays=[6], hours_start=9, hours_end=10)], [], now=datetime(2026,3,29,0,tzinfo=timezone.utc))
         self.assertTrue(result["blocks"][0]["start"].startswith("2026-03-29T07:00"))
 
+    def test_full_limit_dependency_chain_and_shared_predecessor(self):
+        chain = [task(str(i), dependencies=[str(i+1)] if i < 999 else []) for i in range(1000)]
+        ordered = graph_order(chain)
+        self.assertEqual([t["id"] for t in ordered], [str(i) for i in reversed(range(1000))])
+        diamond = [task("a", dependencies=["b", "c"]), task("b", dependencies=["d"]),
+                   task("c", dependencies=["d"]), task("d")]
+        self.assertEqual([t["id"] for t in graph_order(diamond)], ["d", "b", "c", "a"])
+        chain[-1]["dependencies"] = ["0"]
+        with self.assertRaises(ValueError):
+            graph_order(chain)
+
     def test_naive_dates_rejected(self):
         with self.assertRaises(ValueError):
             Task(title="x", due="2026-11-30T12:00:00")
@@ -130,6 +144,26 @@ class CalendarTests(unittest.TestCase):
         self.assertIn('T08:00',events[0]["start"])
         self.assertIn('T07:00',events[1]["start"])
 
+    def test_duration_and_zero_duration_events(self):
+        template = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:test\r\nDTSTART:20261123T090000Z\r\n%sEND:VEVENT\r\nEND:VCALENDAR\r\n'
+        events = parse([template % 'DURATION:PT2H\r\n'], {"id":"test"}, now=NOW)
+        self.assertTrue(events[0]["end"].startswith("2026-11-23T11:00"))
+        events = parse([template % ''], {"id":"test"}, now=NOW)
+        self.assertFalse(events[0]["busy"])
+        self.assertEqual(events[0]["start"], events[0]["end"])
+
+    def test_partial_caldav_errors_never_become_empty_success(self):
+        original = httpx.AsyncClient
+        bodies = [
+            '<d:response><d:href>/bad</d:href><d:status>HTTP/1.1 403 Forbidden</d:status></d:response>',
+            '<d:response><d:propstat><d:prop/><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>',
+        ]
+        for body in bodies:
+            transport = httpx.MockTransport(lambda request: httpx.Response(207, text='<d:multistatus xmlns:d="DAV:">'+body+'</d:multistatus>'))
+            with patch('app.calendars.httpx.AsyncClient', side_effect=lambda **kw: original(transport=transport, **kw)):
+                with self.assertRaises(ValueError):
+                    asyncio.run(fetch({"id":"test","url":"https://calendar.example/","kind":"caldav"}))
+
     def test_high_frequency_recurrence_rejected(self):
         ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:test\r\nDTSTART:20261123T090000Z\r\nDTEND:20261123T100000Z\r\nRRULE:FREQ=SECONDLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n'
         with self.assertRaises(ValueError):
@@ -155,6 +189,37 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/v1/tasks',json={"title":"a"},headers=self.headers).status_code,200)
         self.assertFalse(self.client.get('/api/v1/schedule',headers=self.headers).json()['calendar_writes'])
         self.assertEqual(self.client.post('/api/v1/calendars/publish',headers=self.headers).status_code,404)
+
+    def test_malformed_bodies_and_unicode_credentials_are_client_errors(self):
+        self.assertEqual(self.client.post('/login', json={"token":"é"*40}, headers={"Origin":"http://testserver"}).status_code,401)
+        for body in ([], None, "text", 1):
+            self.assertEqual(self.client.post('/login',json=body,headers={"Origin":"http://testserver"}).status_code,422)
+        t=self.client.post('/api/v1/tasks',json={"title":"a"},headers=self.headers).json()
+        for body in ([], "text", 1):
+            self.assertEqual(self.client.patch('/api/v1/tasks/'+t['id'],json=body,headers={**self.headers,"If-Match":"1"}).status_code,422)
+        self.assertEqual(len(self.app.state.store.tasks()),1)
+
+    def test_duplicate_credentials_rejected(self):
+        with self.assertRaises(RuntimeError):
+            create_app({"data":self.tmp.name,"clients":[{"id":"a","token":"a"*40,"role":"admin"},
+                {"id":"b","token":"a"*40,"role":"read"}]})
+
+    def test_model_timeout_invalid_output_and_success_never_write(self):
+        original = httpx.AsyncClient
+        for outcome in ("timeout", "invalid", "valid"):
+            app=create_app({"data":self.tmp.name,"public_url":"http://testserver", "model_url":"https://model.example",
+                "model":"test-model", "clients":[{"id":"test","token":"a"*40,"role":"admin"}]})
+            def respond(request):
+                if outcome == "timeout":
+                    raise httpx.ReadTimeout("test timeout")
+                return httpx.Response(200,json={"message":{"content":'not json' if outcome == "invalid" else '{"title":"Draft", "minutes":20}'}})
+            with TestClient(app) as client, patch('app.main.httpx.AsyncClient', side_effect=lambda **kw: original(transport=httpx.MockTransport(respond), **kw)):
+                response=client.post('/api/v1/model/propose',json={"text":"Plan a task"},headers=self.headers)
+                self.assertEqual(response.status_code,{"timeout":504,"invalid":502,"valid":200}[outcome])
+                if outcome == "valid":
+                    self.assertFalse(response.json()['applied'])
+                self.assertEqual(app.state.store.tasks(),[])
+                self.assertEqual(client.post('/api/v1/model/propose',json=[],headers=self.headers).status_code,422)
 
     def test_cookie_csrf_and_logout(self):
         response=self.client.post('/login',json={"token":"a"*40},headers={"Origin":"http://testserver"})

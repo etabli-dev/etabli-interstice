@@ -28,6 +28,7 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 | [Model connections](docs/model-connections.md) | MCP tools, external model containers and provider APIs |
 | [Container operations](docs/deployment.md) | Packaging, isolation, budgets and recovery |
 | [Delivery plan](docs/roadmap.md) | Ordered milestones and replacement gates |
+| [Runtime audit](docs/audit-2026-11-26.md) | Findings, regression evidence and remaining gates |
 | [Test installation](docs/test-installation.md) | Build, credentials, testing and operational limits |
 | [Licensing and independence](docs/legal.md) | Rights, provenance and unresolved clearance |
 
