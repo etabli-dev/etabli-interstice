@@ -36,9 +36,20 @@ The 0.2.0 database change adds a preview cache only. Keep the pre-upgrade backup
 | iCloud | Live read-only discovery and event-fetch qualification passed; account details and counts remain in private evidence |
 | Nextcloud | Live read-only discovery and event fetch passed using the supplied account app password. No password reset or calendar mutation performed |
 | Model service | Live latency remains unqualified; shared-host resource pressure is unresolved. Core scheduling must work without inference |
-| Scheduling feature completeness | Task recurrence, stable incremental replans, active timer reservations and richer availability remain unfinished |
+| Scheduling feature completeness | Recurring imports, stable retention of valid blocks, multiple availability windows and date overrides are implemented in the candidate. Series editing, active timer reservations and broader planner acceptance remain unfinished |
 | Focus | Native adapter and iOS/Android/desktop offline/device acceptance remain unfinished |
-| Migration | Existing project/follow-up consumers, exports and single-writer cutover are not migrated |
+| Migration | Complete private snapshot import and source archive are implemented; field-level final reconciliation, calendar coverage, project/follow-up consumers and single-writer cutover remain pending |
 | Sustained operation | Restore rehearsal on deployment, capacity measurements under representative load, monitoring/backup ownership, and a 7–14 day shadow run required |
 
 Do not change the production provider, enable a second calendar writer, or describe this release as a complete replacement until the remaining gates have evidence. Authentication is intended for a personal instance with scoped bearer clients; OAuth enrollment and multi-user tenant isolation are not implemented.
+
+## 0.3.0 candidate changes
+
+The migration importer refuses partial exports and existing destination databases,
+archives the exact source, preserves task identities and cumulative progress, and
+materializes recurrence with stable occurrence IDs. Shadow mode denies mutations
+even for admin credentials. Calendar response caching still fetches providers to
+confirm freshness and invalidates expansion when the UTC day changes. Tests cover
+source pagination failures, ambiguous wall times, recurrence across DST, retries,
+valid-block retention, dependency displacement and shadow write denial. These are
+software checks; the deployment and device gates above still apply.

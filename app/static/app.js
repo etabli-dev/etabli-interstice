@@ -14,6 +14,7 @@ const clock = date => new Date(date).toLocaleTimeString([], {hour:'2-digit', min
 const daykey = date => new Intl.DateTimeFormat('en-CA',{timeZone:zone, year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(date));
 async function load() {
   const status = await api('api/v1/status'); zone=status.time_zone;
+  $('mode-badge').textContent=status.mode==='shadow'?'READ-ONLY SHADOW':'TEST WORKSPACE';
   outbox=new MutationOutbox(localStorage,`interstice-outbox:${location.pathname}:${status.client_id}`,api,()=>crypto.randomUUID());
   $('pending-panel').hidden=!outbox.read();
   $('zone').textContent=`Planning in ${zone} · external calendar writes disabled`;
@@ -30,8 +31,9 @@ async function load() {
   for(const b of items){const d=daykey(b.start);if(d!==last){section=node('section',undefined,'day');section.append(node('h3',new Date(b.start).toLocaleDateString([],{weekday:'long',day:'numeric',month:'short',timeZone:zone})));$('schedule').append(section);last=d;}const row=node('div',undefined,'slot'+(b.event?' busy':''));row.append(node('time',`${clock(b.start)}–${clock(b.end)}`),node('span',b.title));section.append(row);}
   if(!items.length)$('schedule').append(node('p','Add a task to see where it fits.','empty'));
   $('block-count').textContent=`${plan.blocks.length} planned blocks · 8-week horizon`;
-  $('shortages').replaceChildren();$('shortage-panel').hidden=!plan.shortages.length;
+  $('shortages').replaceChildren();$('shortage-panel').hidden=!plan.shortages.length&&!(plan.late||[]).length;
   for(const s of plan.shortages)$('shortages').append(node('p',`${s.title}: ${s.minutes} min not scheduled. ${s.reason}`,'shortage'));
+  for(const s of plan.late||[])$('shortages').append(node('p',`${s.title}: scheduled after its deadline (${new Date(s.due).toLocaleString()}).`,'shortage'));
   $('tasks').replaceChildren();$('task-count').textContent=`${tasks.tasks.filter(t=>!t.completed).length} open`;
   for(const t of tasks.tasks){const row=node('article',undefined,'task'+(t.completed?' done':''));row.append(node('h3',t.title),node('p',`${t.progress} / ${t.minutes} min · ${t.completed?'completed':t.list}`));
     if(!t.completed && status.role==='admin'){

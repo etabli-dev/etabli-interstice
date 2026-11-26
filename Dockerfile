@@ -3,7 +3,7 @@ ARG REVISION=development
 LABEL org.opencontainers.image.title="Etabli Interstice" \
       org.opencontainers.image.source="https://github.com/etabli-dev/etabli-interstice" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
-      org.opencontainers.image.version="0.2.0-test" \
+      org.opencontainers.image.version="0.3.0-candidate" \
       org.opencontainers.image.revision=$REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 WORKDIR /opt/interstice

@@ -50,6 +50,9 @@ def create_app(config=None):
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     cfg = dict(config or {})
+    mode = cfg.get('mode', os.environ.get('INTERSTICE_MODE', 'test'))
+    if mode not in ('test', 'shadow'):
+        raise RuntimeError('Unsupported runtime mode')
     data = Path(cfg.get("data", os.environ.get("INTERSTICE_DATA", "/data")))
     zone = cfg.get("zone", os.environ.get("INTERSTICE_ZONE", "Europe/Berlin"))
     public = cfg.get("public_url", os.environ.get("INTERSTICE_PUBLIC_URL", "http://localhost:8095"))
@@ -90,12 +93,13 @@ def create_app(config=None):
     last_model = [0.0]
     sessions = {}
     limits = {}
+    calendar_cache = {source['id']: {} for source in sources}
 
     async def sync_sources():
         async with sync_lock:
             for source in sources:
                 try:
-                    events = await fetch(source)
+                    events = await fetch(source, calendar_cache[source['id']])
                     await asyncio.to_thread(store.source_result, source["id"], events=events)
                 except Exception as exc:
                     # Only the exception class is logged; messages can contain private URLs.
@@ -111,6 +115,8 @@ def create_app(config=None):
                                                                 allowed_origins=[origin]))
 
     def require_write():
+        if mode == 'shadow':
+            raise PermissionError('Shadow workspace is read-only; edit the source service')
         caller = identity.get()
         if not caller or caller["role"] != "admin":
             raise PermissionError("Write scope is required")
@@ -119,7 +125,7 @@ def create_app(config=None):
     @mcp.tool()
     def tasks_list() -> dict:
         """List tasks in this isolated test instance."""
-        return {"tasks": store.tasks(), "mode": "test"}
+        return {"tasks": store.tasks(), "mode": mode}
 
     @mcp.tool()
     def schedule_get() -> dict:
@@ -160,7 +166,7 @@ def create_app(config=None):
             except asyncio.CancelledError:
                 pass
 
-    app = FastAPI(title="Établi Interstice test", version="0.2.0-test",
+    app = FastAPI(title="Établi Interstice candidate", version="0.3.0-candidate",
                   lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
     metrics = {"requests": 0, "server_errors": 0}
@@ -309,14 +315,18 @@ def create_app(config=None):
             raise HTTPException(503, "Storage capacity low")
         with store.db() as db:
             db.execute("SELECT 1")
-        return {"status": "ok", "mode": "test", "calendar_writes": False, "version": "0.2.0-test"}
+        return {"status": "ok", "mode": mode, "calendar_writes": False, "version": "0.3.0-candidate"}
 
     @app.get("/api/v1/status")
     def status():
-        return {"mode": "test", "calendar_writes": False, "role": identity.get()["role"], "client_id": identity.get()["id"], "time_zone": zone, "metrics": dict(metrics),
+        return {"mode": mode, "calendar_writes": False, "role": 'read' if mode == 'shadow' else identity.get()["role"], "client_id": identity.get()["id"], "time_zone": zone, "metrics": dict(metrics),
                 "model_configured": bool(gateway and model), "model": model or None,
-                "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.2.0-test",
-                "limitations": ["No production calendar writes", "No recurring tasks yet", "Focus adapter not installed", "Preview recalculates from current inputs"]}
+                "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.3.0-candidate",
+                "limitations": ["No production calendar writes", "Recurring series editor pending", "Focus adapter not installed", "Production cutover not qualified"]}
+
+    @app.get('/api/v1/series')
+    def series():
+        return {'series': store.series()}
 
     @app.get("/api/v1/tasks")
     def tasks():

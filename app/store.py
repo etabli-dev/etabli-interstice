@@ -31,6 +31,8 @@ class Store:
               CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY, events TEXT, synced TEXT, error TEXT);
               CREATE TABLE IF NOT EXISTS plans(key TEXT PRIMARY KEY, body TEXT NOT NULL, expires TEXT NOT NULL);
               CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, object_id TEXT);
+              CREATE TABLE IF NOT EXISTS series(id TEXT PRIMARY KEY, body TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS occurrences(series TEXT, date TEXT, task TEXT UNIQUE, PRIMARY KEY(series,date));
             ''')
         Path(self.path).chmod(0o600)
 
@@ -57,7 +59,26 @@ class Store:
 
     def tasks(self):
         with self.db() as db:
+            self._materialize(db, datetime.now(timezone.utc))
             return self._tasks(db)
+
+    def _materialize(self, db, now):
+        from .recurrence import occurrences
+        count = db.execute('SELECT COUNT(*) FROM tasks').fetchone()[0]
+        for row in db.execute('SELECT body FROM series ORDER BY id').fetchall():
+            series = json.loads(row['body'])
+            for ident, task, date in occurrences(series, now):
+                if db.execute('SELECT 1 FROM occurrences WHERE series=? AND date=?', (series['id'], date)).fetchone():
+                    continue
+                if count >= 10000:
+                    raise ValueError('Instance task limit reached while expanding recurrence')
+                db.execute('INSERT INTO tasks VALUES(?,?,1)', (ident, json.dumps(task)))
+                db.execute('INSERT INTO occurrences VALUES(?,?,?)', (series['id'], date, ident))
+                count += 1
+
+    def series(self):
+        with self.db() as db:
+            return [json.loads(row['body']) for row in db.execute('SELECT body FROM series ORDER BY id')]
 
     def operation(self, client, key):
         with self.db() as db:
@@ -95,8 +116,8 @@ class Store:
                 graph_order([t for t in tasks if t["id"] != ident] + [task])
                 task.pop("id")
                 version = current["revision"] + 1 if current else 1
-                if not current and len(tasks) >= 1000:
-                    raise ValueError("Test instance task limit reached")
+                if not current and len(tasks) >= 10000:
+                    raise ValueError("Instance task limit reached")
                 db.execute("INSERT INTO tasks VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body,revision=excluded.revision", (ident, json.dumps(task), version))
             elif action == "progress":
                 session, minutes = payload["session_id"], payload["minutes"]
@@ -134,8 +155,11 @@ class Store:
         live = now is None
         now = now or datetime.now(timezone.utc)
         with self.db() as db:
+            self._materialize(db, now)
             tasks, sources, digest = self._snapshot(db)
             cached = db.execute("SELECT * FROM plans WHERE key=?", (digest,)).fetchone()
+            previous = db.execute('SELECT body FROM plans LIMIT 1').fetchone()
+            previous = json.loads(previous['body']) if previous else {}
             if cached and now < datetime.fromisoformat(cached["expires"]):
                 result = json.loads(cached["body"])
             else:
@@ -144,8 +168,11 @@ class Store:
         if len(events) > 5000:
             raise WorkLimit("Combined calendar event limit exceeded")
         if result is None:
-            result = run_job("schedule", {"tasks": tasks, "events": events, "zone": self.zone, "now": None if live else now.isoformat()}, wait_timeout=60)
+            signatures = {t['id']: hashlib.sha256(json.dumps(t,sort_keys=True).encode()).hexdigest() for t in tasks}
+            retained = [b for b in previous.get('blocks', []) if signatures.get(b['task_id']) == previous.get('_task_signatures', {}).get(b['task_id'])]
+            result = run_job("schedule", {"tasks": tasks, "events": events, "zone": self.zone, "now": None if live else now.isoformat(), 'previous': retained}, wait_timeout=60)
             result["inputs_revision"] = digest
+            result['_task_signatures'] = signatures
             expires = min([now + timedelta(minutes=5)] +
                           [datetime.fromisoformat(b["start"]) for b in result["blocks"]])
             with self.db() as db:
@@ -160,6 +187,7 @@ class Store:
         result["calendar_inputs_ready"] = all(not s["stale"] for s in result["sources"])
         result["mode"] = "test"
         result["calendar_writes"] = False
+        result.pop('_task_signatures', None)
         return result
 
     def configure_sources(self, identifiers):

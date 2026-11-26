@@ -1,6 +1,8 @@
 # Copyright 2026 R. Heller
 # SPDX-License-Identifier: AGPL-3.0-only
 import asyncio
+import hashlib
+import json
 from datetime import datetime, date, time, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,7 +13,7 @@ import recurring_ical_events
 from defusedxml import ElementTree
 
 
-async def fetch(source):
+async def fetch(source, cache=None):
     """Sources are administrator-mounted configuration, never user-supplied URLs."""
     url = source["url"].replace("webcal://", "https://", 1)
     parsed = urlsplit(url)
@@ -48,8 +50,15 @@ async def fetch(source):
                     raise ValueError("Calendar response exceeds test limit")
     from .work import run_job
     safe_source = {k: source[k] for k in ("id", "time_zone", "all_day_busy") if k in source}
-    return await asyncio.to_thread(run_job, "calendar", {
+    fingerprint = hashlib.sha256(bytes(data) + json.dumps([method, safe_source,
+        datetime.now(timezone.utc).date().isoformat()], sort_keys=True).encode()).hexdigest()
+    if cache is not None and cache.get('fingerprint') == fingerprint:
+        return cache['events']
+    events = await asyncio.to_thread(run_job, "calendar", {
         "data": bytes(data).decode("utf-8-sig"), "method": method, "source": safe_source}, timeout=60, wait_timeout=60)
+    if cache is not None:
+        cache.update(fingerprint=fingerprint, events=events)
+    return events
 
 
 def decode(data, method, source):

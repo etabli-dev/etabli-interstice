@@ -24,7 +24,9 @@ def checked_backup(source, destination):
             src.backup(dst)
             if dst.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("Backup integrity check failed")
-            counts = {t: dst.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in ("tasks", "receipts", "operations")}
+            tables = {row[0] for row in dst.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            counts = {t: dst.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in
+                      ("tasks", "receipts", "operations", "series", "occurrences", "migration_items", "migration_snapshot") if t in tables}
         with temporary.open("rb") as stream:
             os.fsync(stream.fileno())
         # Linking fails if another backup has already claimed this destination.

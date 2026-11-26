@@ -3,7 +3,7 @@
 """Independent hard-constraint checks before accepting a computed plan."""
 from datetime import timedelta
 from zoneinfo import ZoneInfo
-from .domain import instant
+from .domain import instant, working_windows
 
 
 def validate_plan(tasks, events, plan):
@@ -19,14 +19,13 @@ def validate_plan(tasks, events, plan):
         minutes=(end-start).total_seconds()/60
         if not task['scheduled'] or task['completed'] or not (now<=start<end<=horizon) or minutes!=block['minutes']:
             raise ValueError('Invalid planned interval')
-        if (task['due'] and end>instant(task['due'])) or (task['earliest'] and start<instant(task['earliest'])):
+        if (task['due'] and not task.get('allow_late') and end>instant(task['due'])) or (task['earliest'] and start<instant(task['earliest'])):
             raise ValueError('Task date constraint violated')
         if task['fixed_start']:
             if start!=instant(task['fixed_start']):raise ValueError('Fixed block moved')
         else:
-            a,b=start.astimezone(zone),end.astimezone(zone)
-            finish=b.hour*60+b.minute+(1440 if b.date()>a.date() else 0)
-            if a.weekday() not in task['weekdays'] or a.hour*60+a.minute<task['hours_start']*60 or finish>task['hours_end']*60:
+            local = start.astimezone(ZoneInfo(task.get('time_zone') or plan['time_zone']))
+            if not any(a <= start < end <= b for a,b in working_windows(task, local.date(), plan['time_zone'])):
                 raise ValueError('Working window violated')
         pad=timedelta(minutes=task['buffer'])
         for event in events:
