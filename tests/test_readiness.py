@@ -130,6 +130,17 @@ class DiscoveryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 allowed_url(url,['cloud.example'])
 
+    def test_compressed_calendar_response_rejected_before_decoding(self):
+        import asyncio,httpx
+        from app.calendars import fetch
+        original=httpx.AsyncClient
+        def respond(request):
+            self.assertEqual(request.headers['accept-encoding'],'identity')
+            return httpx.Response(200,headers={'Content-Encoding':'gzip'},stream=httpx.ByteStream(b'not-a-gzip-stream'))
+        with patch('app.calendars.httpx.AsyncClient',side_effect=lambda **kw: original(transport=httpx.MockTransport(respond),**kw)):
+            with self.assertRaisesRegex(ValueError,'Compressed calendar'):
+                asyncio.run(fetch({'id':'test','url':'https://cloud.example/calendar.ics','kind':'ics'}))
+
     def test_cross_origin_redirect_never_receives_credentials(self):
         import asyncio,httpx
         from app.discovery import discover

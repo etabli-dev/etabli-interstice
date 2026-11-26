@@ -19,12 +19,12 @@ async def fetch(source):
         raise ValueError("Unsupported calendar address")
     if parsed.scheme != "https" and not source.get("allow_private_http", False):
         raise ValueError("HTTPS is required")
-    headers, method, body = {}, "GET", None
+    headers, method, body = {"Accept-Encoding": "identity"}, "GET", None
     if source["kind"] == "caldav":
         start = datetime.now(timezone.utc) - timedelta(days=1)
         end = start + timedelta(days=58)
         method = "REPORT"
-        headers = {"Depth": "1", "Content-Type": "application/xml; charset=utf-8"}
+        headers = {"Depth": "1", "Content-Type": "application/xml; charset=utf-8", "Accept-Encoding": "identity"}
         body = ('<?xml version="1.0"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
                 '<d:prop><d:getetag/><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR">'
                 '<c:comp-filter name="VEVENT"><c:time-range start="' + start.strftime('%Y%m%dT%H%M%SZ') +
@@ -39,6 +39,8 @@ async def fetch(source):
             response.raise_for_status()
             if response.status_code not in (200, 207):
                 raise ValueError("Unexpected calendar response")
+            if response.headers.get("content-encoding", "identity").lower() != "identity":
+                raise ValueError("Compressed calendar responses are not accepted")
             data = bytearray()
             async for part in response.aiter_bytes():
                 data.extend(part)

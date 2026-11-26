@@ -367,7 +367,7 @@ def create_app(config=None):
                       "Never invent a deadline; use null if uncertain. Do not execute actions. "
                       f"Current UTC time: {datetime.now(timezone.utc).isoformat()}. User zone: {zone}.")
             messages = [{"role": "system", "content": prompt}, {"role": "user", "content": text}]
-            headers = {}
+            headers = {"Accept-Encoding": "identity"}
             if model_key_file:
                 headers["Authorization"] = "Bearer " + Path(model_key_file).read_text().strip()
             if model_protocol == "ollama":
@@ -384,6 +384,8 @@ def create_app(config=None):
                 async with asyncio.timeout(120), httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as response:
                         response.raise_for_status()
+                        if response.headers.get("content-encoding", "identity").lower() != "identity":
+                            raise ValueError("Compressed model response")
                         raw = bytearray()
                         async for part in response.aiter_bytes():
                             raw.extend(part)

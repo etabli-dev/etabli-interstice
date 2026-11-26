@@ -27,11 +27,13 @@ async def discover(url, username, password, allowed_hosts):
                 allowed_url(target, allowed_hosts)
                 body='<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop>'+properties+'</d:prop></d:propfind>'
                 async with client.stream('PROPFIND',target,auth=(username,password),
-                    headers={'Depth':depth,'Content-Type':'application/xml'},content=body) as response:
+                    headers={'Depth':depth,'Content-Type':'application/xml','Accept-Encoding':'identity'},content=body) as response:
                     if response.status_code in (301,302,307,308):
                         target=urljoin(target,response.headers['Location']); continue
                     if response.status_code != 207:
                         raise ValueError('Calendar discovery failed with HTTP '+str(response.status_code))
+                    if response.headers.get("content-encoding", "identity").lower() != "identity":
+                        raise ValueError("Compressed discovery responses are not accepted")
                     data=bytearray()
                     async for chunk in response.aiter_bytes():
                         data.extend(chunk)
