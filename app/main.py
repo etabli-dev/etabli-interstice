@@ -310,7 +310,7 @@ def create_app(config=None):
             if model_protocol == "ollama":
                 url = gateway.rstrip("/") + "/api/chat"
                 payload = {"model": model, "messages": messages, "stream": False, "format": "json", "think": False, "keep_alive": "1m",
-                           "options": {"num_ctx": 2048, "num_predict": 256, "num_thread": 1, "temperature": 0}}
+                           "options": {"num_ctx": 1024, "num_predict": 128, "num_thread": 2, "temperature": 0}}
             elif model_protocol == "chat-completions":
                 url = gateway.rstrip("/") + "/chat/completions"
                 payload = {"model": model, "messages": messages, "max_tokens": 500, "temperature": 0,
@@ -318,7 +318,7 @@ def create_app(config=None):
             else:
                 raise HTTPException(503, "Unsupported configured model protocol")
             try:
-                async with httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False) as client:
+                async with asyncio.timeout(120), httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as response:
                         response.raise_for_status()
                         raw = bytearray()

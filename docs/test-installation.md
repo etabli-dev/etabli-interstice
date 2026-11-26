@@ -46,7 +46,7 @@ Browser progress buttons record individual test sessions. Focus's production ses
 
 Configure `INTERSTICE_MODEL_URL`, `INTERSTICE_MODEL`, and `INTERSTICE_MODEL_PROTOCOL`. For a private HTTP endpoint, explicitly set `INTERSTICE_ALLOW_PRIVATE_MODEL=1`; otherwise use HTTPS. For providers needing a key, mount a secret file and set `INTERSTICE_MODEL_KEY_FILE` in an override. Never enter provider keys into the browser.
 
-Only the text entered into the draft form is sent to the provider, together with a task schema and current date/time-zone context. Existing calendars and tasks are not sent. The gateway has a 120-second timeout, one in-flight request and a 15-second minimum interval. The Ollama adapter disables thinking and requests at most 256 output tokens on one thread. It validates the returned task, has no tools or execution authority, and never silently falls back to a different provider. Slow-host latency is not production-qualified.
+Only the text entered into the draft form is sent to the provider, together with a task schema and current date/time-zone context. Existing calendars and tasks are not sent. The gateway has an overall 120-second deadline, one in-flight request and a 15-second minimum interval. The Ollama adapter disables thinking and requests at most 128 output tokens with two inference threads; budget these within the separate model service's CPU limit. It validates the returned task, has no tools or execution authority, and never silently falls back to a different provider. Slow-host latency is not production-qualified.
 
 ## Checks and recovery
 
