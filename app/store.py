@@ -80,6 +80,13 @@ class Store:
         with self.db() as db:
             return [json.loads(row['body']) for row in db.execute('SELECT body FROM series ORDER BY id')]
 
+    def migration_status(self):
+        with self.db() as db:
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='migration_snapshot'").fetchone():
+                return None
+            row = db.execute("SELECT sha256, json_extract(CAST(body AS TEXT), '$.finished_at') AS captured FROM migration_snapshot").fetchone()
+            return {'sha256': row['sha256'], 'captured_at': row['captured'], 'source_live': False} if row else None
+
     def operation(self, client, key):
         with self.db() as db:
             row = db.execute("SELECT result FROM operations WHERE client=? AND key=?", (client, key)).fetchone()

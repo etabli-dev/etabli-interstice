@@ -18,6 +18,7 @@ async function load() {
   outbox=new MutationOutbox(localStorage,`interstice-outbox:${location.pathname}:${status.client_id}`,api,()=>crypto.randomUUID());
   $('pending-panel').hidden=!outbox.read();
   $('zone').textContent=`Planning in ${zone} · external calendar writes disabled`;
+  if(status.migration)$('zone').textContent+=` · Task copy from ${new Date(status.migration.captured_at).toLocaleString()}; source changes are not synced`;
   $('model-status').textContent=status.model_configured ? `Configured model (availability unverified): ${status.model}` : 'No model configured';
   $('model-form').hidden=!status.model_configured || status.role!=='admin'; $('task-form').hidden=status.role!=='admin'; $('refresh').hidden=status.role!=='admin';
   $('workspace').hidden=false; $('login-panel').hidden=true; $('logout').hidden=false;

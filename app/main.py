@@ -320,6 +320,7 @@ def create_app(config=None):
     @app.get("/api/v1/status")
     def status():
         return {"mode": mode, "calendar_writes": False, "role": 'read' if mode == 'shadow' else identity.get()["role"], "client_id": identity.get()["id"], "time_zone": zone, "metrics": dict(metrics),
+                'migration': store.migration_status(),
                 "model_configured": bool(gateway and model), "model": model or None,
                 "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.3.0-candidate",
                 "limitations": ["No production calendar writes", "Recurring series editor pending", "Focus adapter not installed", "Production cutover not qualified"]}

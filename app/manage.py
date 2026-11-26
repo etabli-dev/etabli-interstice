@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+from contextlib import closing
 
 
 def checked_backup(source, destination):
@@ -20,7 +21,7 @@ def checked_backup(source, destination):
     os.close(fd)
     temporary = Path(name)
     try:
-        with sqlite3.connect(source.resolve().as_uri()+"?mode=ro", uri=True) as src, sqlite3.connect(temporary) as dst:
+        with closing(sqlite3.connect(source.resolve().as_uri()+"?mode=ro", uri=True)) as src, closing(sqlite3.connect(temporary)) as dst:
             src.backup(dst)
             if dst.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("Backup integrity check failed")

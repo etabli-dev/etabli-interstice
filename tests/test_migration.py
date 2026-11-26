@@ -54,6 +54,8 @@ class MigrationTests(unittest.TestCase):
             src.write_text(json.dumps(fixture()))
             report=import_snapshot(src,dst)
             store=Store(dst)
+            self.assertEqual(store.migration_status()['captured_at'],NOW.isoformat())
+            self.assertFalse(store.migration_status()['source_live'])
             self.assertEqual(store.tasks()[0]['progress'],20)
             self.assertEqual(report['source_items'],{'task':1})
             with sqlite3.connect(dst) as db:
