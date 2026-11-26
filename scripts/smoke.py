@@ -22,7 +22,7 @@ def call(path, body=None, key=None):
         headers["Idempotency-Key"] = key
     request = urllib.request.Request(args.base_url.rstrip("/") + path, headers=headers,
                                      data=json.dumps(body).encode() if body is not None else None)
-    with urllib.request.urlopen(request, timeout=75) as response:
+    with urllib.request.urlopen(request, timeout=135) as response:
         return json.load(response)
 
 

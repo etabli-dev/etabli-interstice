@@ -169,6 +169,14 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/v1/model/propose',json={"text":"test"},headers=self.headers).status_code,503)
         self.assertEqual(self.app.state.store.tasks(),[])
 
+    def test_stripped_proxy_prefix_serves_assets_and_api(self):
+        app=create_app({"data":self.tmp.name,"public_url":"http://testserver/trial","clients":[{"id":"test-admin","token":"a"*40,"role":"admin"}]})
+        with TestClient(app) as client:
+            self.assertEqual(client.get('/').status_code,200)
+            self.assertEqual(client.get('/static/app.js').status_code,200)
+            self.assertEqual(client.get('/trial/static/style.css').status_code,200)
+            self.assertEqual(client.get('/api/v1/status',headers=self.headers).status_code,200)
+
     def test_mcp_initialize_and_scope(self):
         headers={**self.headers,"Accept":"application/json, text/event-stream"}
         init={"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}

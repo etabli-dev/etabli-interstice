@@ -153,6 +153,11 @@ def create_app(config=None):
 
     @app.middleware("http")
     async def security(request, call_next):
+        # A stripping reverse proxy removes the prefix from path. Mounted ASGI
+        # applications need the full path as well as root_path to resolve assets.
+        if prefix and not request.scope["path"].startswith(prefix + "/"):
+            request.scope["path"] = prefix + request.scope["path"]
+            request.scope["raw_path"] = prefix.encode() + request.scope.get("raw_path", b"/")
         if request.headers.get("host", "").split(":")[0] not in (parsed.hostname, "localhost", "127.0.0.1", "testserver"):
             return JSONResponse({"detail": "Invalid host"}, status_code=400)
         path = request.url.path
@@ -304,8 +309,8 @@ def create_app(config=None):
                 headers["Authorization"] = "Bearer " + Path(model_key_file).read_text().strip()
             if model_protocol == "ollama":
                 url = gateway.rstrip("/") + "/api/chat"
-                payload = {"model": model, "messages": messages, "stream": False, "format": "json", "keep_alive": "1m",
-                           "options": {"num_ctx": 4096, "num_predict": 500, "num_thread": 1, "temperature": 0}}
+                payload = {"model": model, "messages": messages, "stream": False, "format": "json", "think": False, "keep_alive": "1m",
+                           "options": {"num_ctx": 2048, "num_predict": 256, "num_thread": 1, "temperature": 0}}
             elif model_protocol == "chat-completions":
                 url = gateway.rstrip("/") + "/chat/completions"
                 payload = {"model": model, "messages": messages, "max_tokens": 500, "temperature": 0,
@@ -313,7 +318,7 @@ def create_app(config=None):
             else:
                 raise HTTPException(503, "Unsupported configured model protocol")
             try:
-                async with httpx.AsyncClient(timeout=60, follow_redirects=False, trust_env=False) as client:
+                async with httpx.AsyncClient(timeout=120, follow_redirects=False, trust_env=False) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as response:
                         response.raise_for_status()
                         raw = bytearray()
