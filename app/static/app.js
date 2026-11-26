@@ -43,7 +43,8 @@ async function load() {
 $('login-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{await api('login','POST',{token:$('token').value});$('token').value='';message('');await load();});};
 $('task-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{await outbox.perform('api/v1/tasks',{title:$('title').value,minutes:Number($('minutes').value),priority:Number($('priority').value),due:$('due').value?new Date($('due').value).toISOString():null,notes:$('notes').value,list:'Test work'});e.target.reset();await load();message('Task added. This plan stays inside the test workspace.');});};
 $('retry-pending').onclick=e=>run(e.target,async()=>{await outbox.retry();await load();message('Pending action confirmed.');});
+$('reload-plan').onclick=e=>run(e.target,load);
 $('refresh').onclick=e=>run(e.target,async()=>{await api('api/v1/calendars/refresh','POST',{});await load();message('Calendar refresh finished. Check source status for any failures.');});
 $('model-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{message('Preparing a draft…');const r=await api('api/v1/model/propose','POST',{text:$('prompt').value});$('title').value=r.proposal.title;$('minutes').value=r.proposal.minutes;$('priority').value=r.proposal.priority;$('notes').value=r.proposal.notes;$('due').value='';if(r.proposal.due){const d=new Date(r.proposal.due);const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);$('due').value=local.toISOString().slice(0,16);}message('Draft ready. Review the details, then choose “Add to the plan”.');$('title').focus();});};
 $('logout').onclick=e=>run(e.target,async()=>{await api('api/v1/logout','POST',{});location.reload();});
-load().catch(()=>{$('login-panel').hidden=false;});
+load().catch(e=>{if(e.status===401){$('login-panel').hidden=false;$('workspace').hidden=true;}else message(e.message);});
