@@ -35,6 +35,7 @@ services:
       interval: 60s
       timeout: 20s
       start_period: 180s
+      start_interval: 60s
   calendar:
     image: ${INTERSTICE_IMAGE:-etabli-interstice:0.1.0-test}
     command: ["python", "-m", "uvicorn", "app.fixture:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
@@ -53,5 +54,6 @@ services:
       interval: 60s
       timeout: 20s
       start_period: 180s
+      start_interval: 60s
 networks:
   test: {}
