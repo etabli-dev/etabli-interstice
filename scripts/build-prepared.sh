@@ -7,7 +7,9 @@ set -eu
 build_context=$(mktemp -d "$TMPDIR/interstice-build.XXXXXX")
 trap 'rm -rf "$build_context"' EXIT HUP INT TERM
 uv pip install --python "$INTERSTICE_PYTHON" --target "$build_context/vendor" --require-hashes --only-binary :all: -r requirements.lock
+"$INTERSTICE_PYTHON" -m compileall -q -j 1 -s "$build_context/vendor" -p /usr/local/lib/python3.13/site-packages "$build_context/vendor"
 cp -R app "$build_context/app"
+"$INTERSTICE_PYTHON" -m compileall -q -j 1 -s "$build_context/app" -p /opt/interstice/app "$build_context/app"
 cp LICENSE NOTICE requirements.lock "$build_context/"
 cp deploy/Dockerfile.prepared "$build_context/Dockerfile"
 docker build --build-arg "REVISION=${REVISION:-development}" -t "${INTERSTICE_IMAGE:-etabli-interstice:0.1.0-test}" "$build_context"
