@@ -8,8 +8,14 @@ LABEL org.opencontainers.image.title="Etabli Interstice" \
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 WORKDIR /opt/interstice
 COPY requirements.lock ./
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock \
-    && groupadd -g 10005 interstice && useradd -u 10005 -g 10005 -M interstice
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade \
+       libzstd1=1.5.7+dfsg-1+deb13u1 passwd=1:4.17.4-2+deb13u1 login.defs=1:4.17.4-2+deb13u1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --require-hashes -r requirements.lock \
+    && groupadd -g 10005 interstice && useradd -u 10005 -g 10005 -M interstice \
+    && python -m pip uninstall -y pip setuptools wheel \
+    && rm -rf /usr/local/lib/python3.13/ensurepip
 COPY app ./app
 COPY LICENSE NOTICE ./
 USER 10005:10005

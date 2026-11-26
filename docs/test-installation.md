@@ -10,7 +10,7 @@ Build the normal Dockerfile with a container engine:
 docker build -t etabli-interstice:0.2.0-test .
 ```
 
-On hosts that enforce workload limits outside the Docker build daemon, run `scripts/build-prepared.sh` through the host's workload wrapper. Set `TMPDIR` to a private temporary directory and `INTERSTICE_PYTHON` to Python 3.13. The script requires `uv`, installs only hash-verified binary wheels into temporary staging and builds an image without executing dependency installation in Docker. The prepared build currently targets the build host's Linux architecture; cross-architecture output is not qualified.
+On hosts where Docker build execution cannot inherit the required workload budget, use the tested image artifact from a successful CI run for the exact source revision. Verify its SHA256SUMS and OCI revision label before loading it. CI includes container startup, writer-lock, backup/restore and vulnerability checks, and exports the image plus its software inventory. The former dependency-overlay builder was removed because it retained base-image packaging tools and could not apply the required OS fixes.
 
 Create `deploy/data` owned by UID/GID 10005 and a private `deploy/secrets/tokens.json` readable by UID 10005. Its schema is a JSON array containing `id`, `role` (`admin` or `read`) and an independently generated random `token` of at least 32 characters per client. Generate tokens with a cryptographic random generator; do not copy example credentials or store the file in Git.
 

@@ -32,7 +32,7 @@ The 0.2.0 database change adds a preview cache only. Keep the pre-upgrade backup
 | --- | --- |
 | Core invariants and failure recovery | Automated scheduling, concurrent receipts, worker failure, cache invalidation, backup and API tests; 80 deterministic randomized scheduling cases |
 | Browser ambiguous writes | Real headless browser: accepted progress response dropped, reload, retry; exactly 25 minutes credited once; no script errors or mobile overflow |
-| Dependency audit | Pinned Python packages checked with pip-audit; no known vulnerabilities returned at audit time. Base-image OS vulnerability assessment and signed release provenance remain separate work |
+| Dependency audit | Pinned Python packages checked with pip-audit; no known vulnerabilities returned at audit time. Full-image scanning also runs in CI, with an exported software inventory and a failing gate for fixable high/critical findings. Unfixed OS findings still require exposure review; no zero-vulnerability claim is made. Signed release provenance remains separate work |
 | iCloud | Live read-only discovery and event-fetch qualification passed; account details and counts remain in private evidence |
 | Nextcloud | Live read-only discovery and event fetch passed using the supplied account app password. No password reset or calendar mutation performed |
 | Model service | Live latency remains unqualified; shared-host resource pressure is unresolved. Core scheduling must work without inference |

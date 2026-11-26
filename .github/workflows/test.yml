@@ -24,3 +24,19 @@ jobs:
       - run: docker build --build-arg REVISION="$GITHUB_SHA" -t interstice-ci .
       - name: Container startup, lease and backup checks
         run: bash scripts/check-container.sh interstice-ci
+
+      - name: Audit image and produce software inventory
+        run: sh scripts/audit-image.sh interstice-ci image-artifact
+      - name: Export tested image
+        run: |
+          mkdir -p image-artifact
+          docker image inspect interstice-ci --format '{{json .}}' > image-artifact/image-inspect.json
+          docker tag interstice-ci "etabli-interstice:${GITHUB_SHA}"
+          docker save "etabli-interstice:${GITHUB_SHA}" | gzip -1 > image-artifact/image.tar.gz
+          (cd image-artifact && sha256sum image.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tested-container-${{ github.sha }}
+          path: image-artifact/
+          retention-days: 14
+          compression-level: 0
