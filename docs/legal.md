@@ -30,4 +30,4 @@ Before a branded production launch, assess confusingly similar names, relevant s
 
 Review every actual dependency and base image before release. Preserve notices; identify incompatible components; publish corresponding source and reproducible build inputs for covered components. Do not assume that placing software in separate containers settles whether a combined work exists.
 
-No functional code or container is currently included, so no runtime dependency audit, proprietary implementation comparison, trademark-register clearance or patent clearance is claimed.
+The initial test runtime includes original code and a container build. Dependency license metadata is recorded separately; no comprehensive license opinion, proprietary implementation comparison, trademark-register clearance or patent clearance is claimed. Public distribution of built images must include corresponding-source arrangements for covered third-party components as well as this project's own source.

@@ -2,7 +2,7 @@
 
 ## One product, one application image
 
-The proposed baseline is Python with FastAPI, a deterministic scheduling module and a compiled TypeScript browser client. Package the API, static client and background jobs in one application image. SQLite on a local persistent volume is the initial database; a single writer coordinates mutations. Use the database for the durable job queue and outbox rather than introducing Redis or another database service.
+The initial runtime uses Python with FastAPI, a deterministic scheduling module and a small static browser client. Package the API, static client and background jobs in one application image. SQLite on a local persistent volume is the initial database; a single writer coordinates mutations. Durable task mutation receipts are implemented. A database-backed calendar outbox and persisted plan revisions are later work; the test runtime has no external calendar write path.
 
 This favors a small personal deployment. Revisit PostgreSQL and separate workers for multiple replicas or sustained multi-user contention. Do not put the SQLite database on a network share.
 
@@ -25,6 +25,8 @@ flowchart TD
 ```
 
 ## Scheduling engine
+
+Current test implementation: bounded eight-week first-fit previews, computed on read. It does not yet preserve flexible blocks between previews, enforce a wall-clock solver deadline or implement recurring tasks. The remaining paragraphs describe the target architecture rather than completed behavior.
 
 Use minute-based intervals with configurable rounding and explicit handling of any remainder. Expand recurring events only within the planning horizon, with bounded lookback for overlapping events. Subtract busy intervals and buffers from allowed hours. Topologically order dependencies; prioritize urgency and priority, then fit remaining effort into admissible windows.
 

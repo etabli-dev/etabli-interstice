@@ -1,6 +1,6 @@
 # External model connections
 
-Status: required design, not implemented. Interstice offers two independently configurable modes. Neither requires embedding a model or model weights in its application container.
+Status: initial test subset implemented. The runtime offers authenticated MCP task/schedule/progress tools and proposal-only Ollama or chat-completions API connections. Fine-grained per-list scopes, OIDC authorization, automatic model tool loops and the broader tool surface below remain targets. Neither mode requires embedding a model or model weights in its application container.
 
 ## 1. External client uses Interstice through MCP
 

@@ -1,6 +1,6 @@
 # Container and operations concept
 
-No image or executable Compose configuration is provided yet. These are implementation requirements, not deployment instructions for a working service.
+An initial image build and isolated test Compose configuration now exist. Use [the test runbook](test-installation.md) for the actual release. The following sections remain production design targets; in particular the test service does not publish calendar changes, provide a full OIDC flow or include a durable calendar outbox.
 
 ## Packaging
 
@@ -32,4 +32,4 @@ Version migrations; back up before upgrades. Pin release images by digest. Provi
 
 Publish versioned source, Dockerfile, lockfiles, build instructions, source revision labels, SBOM, license notices and corresponding source alongside every image. The running UI exposes its exact version and source link. Include downstream changes in source offers for covered modified versions; a link to an unmodified upstream tree is insufficient.
 
-Before release, verify dependency licenses, image vulnerabilities, architecture builds, unprivileged execution, restore behavior, mobile compatibility and a complete source build. No runtime dependency or base-image license audit has happened at the concept stage.
+Before production release, verify dependency licenses, image vulnerabilities, architecture builds, unprivileged execution, restore behavior, mobile compatibility and a complete source build. Initial Python dependency license metadata is recorded in [the dependency inventory](dependencies.json); that inventory is not a full base-image or vulnerability audit.

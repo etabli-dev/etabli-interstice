@@ -1,6 +1,6 @@
 # Delivery and replacement gates
 
-All milestones are pending. This repository is a specification, not a finished replacement.
+The concept is recorded and an initial isolated test runtime implements parts of stages 1–3 and 5a. Full milestone acceptance remains pending; this is not a finished replacement. See [the test runbook](test-installation.md).
 
 | Stage | Deliverable | Exit evidence |
 | --- | --- | --- |

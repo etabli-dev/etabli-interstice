@@ -1,6 +1,6 @@
 # Contributing
 
-This repository currently contains a design specification. Open an issue before implementing a substantial component so its behavior and acceptance criteria can be agreed.
+This repository contains a design specification and an initial test runtime. Open an issue before implementing a substantial component so its behavior and acceptance criteria can be agreed.
 
 Submit only original material or material whose license and provenance permit its inclusion. Contributions are offered under AGPL-3.0-only; contributors retain their copyright. There is no copyright assignment or automatic commercial relicensing grant.
 

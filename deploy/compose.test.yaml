@@ -1,0 +1,57 @@
+name: interstice-test
+services:
+  app:
+    image: ${INTERSTICE_IMAGE:-etabli-interstice:0.1.0-test}
+    restart: unless-stopped
+    read_only: true
+    user: "10005:10005"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 80
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    environment:
+      INTERSTICE_DATA: /data
+      INTERSTICE_PUBLIC_URL: ${INTERSTICE_PUBLIC_URL:-http://localhost:8095}
+      INTERSTICE_ZONE: Europe/Berlin
+      INTERSTICE_TOKENS_FILE: /run/secrets/tokens.json
+      INTERSTICE_SOURCES_FILE: /run/config/calendars.json
+      INTERSTICE_MODEL_URL: ${INTERSTICE_MODEL_URL:-}
+      INTERSTICE_MODEL: ${INTERSTICE_MODEL:-}
+      INTERSTICE_MODEL_PROTOCOL: ${INTERSTICE_MODEL_PROTOCOL:-ollama}
+      INTERSTICE_ALLOW_PRIVATE_MODEL: ${INTERSTICE_ALLOW_PRIVATE_MODEL:-0}
+    volumes:
+      - ${INTERSTICE_STATE:-./data}:/data
+      - ${INTERSTICE_SECRETS:-./secrets}/tokens.json:/run/secrets/tokens.json:ro
+      - ./calendars.test.json:/run/config/calendars.json:ro
+    ports: ["127.0.0.1:8095:8080"]
+    networks: [test]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)"]
+      interval: 60s
+      timeout: 20s
+      start_period: 180s
+  calendar:
+    image: ${INTERSTICE_IMAGE:-etabli-interstice:0.1.0-test}
+    command: ["python", "-m", "uvicorn", "app.fixture:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+    restart: unless-stopped
+    read_only: true
+    user: "10005:10005"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.25
+    mem_limit: 128m
+    pids_limit: 30
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    networks: [test]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 60s
+      timeout: 20s
+      start_period: 180s
+networks:
+  test: {}

@@ -1,6 +1,6 @@
 # Product requirements
 
-Status: proposed, 2026-11-26. Every capability below is unimplemented in this repository.
+Status: target requirements, 2026-11-26. The initial test runtime implements a subset; see [current coverage and limits](test-installation.md). This document does not certify full acceptance.
 
 ## Product boundary
 

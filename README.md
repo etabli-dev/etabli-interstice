@@ -2,9 +2,9 @@
 
 Make room for the work that matters.
 
-Établi Interstice is a proposed self-hosted scheduling service: it places tasks around calendar commitments, adapts when plans change, and explains when there is too much work for the time available. **Établi Focus is its mobile companion**, connecting to the service for tasks, schedules, focus progress and completion. A browser interface provides planning and administration.
+Établi Interstice is a self-hosted scheduling service under development: it places tasks around calendar commitments and explains when there is too much work for the time available. **Établi Focus is the designated mobile companion**; its Interstice adapter is still pending. A browser interface provides the current test workspace.
 
-**Status: concept and implementation specification. There is no runnable application, published container image or verified feature implementation yet.**
+**Status: runnable 0.1.0 test container, not a production replacement.** The initial runtime supports tasks, deterministic schedule previews, deadlines, dependencies, splitting, fixed blocks, progress receipts, CalDAV/ICS reads, authenticated MCP and an optional external model connection. External calendar writes are absent by design. Recurring tasks, mobile integration, stable persisted plans, project migration and broader provider adapters remain pending. No public registry image is published yet; build from source.
 
 Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGPL-3.0-only**. The working name refers to the spaces between commitments; it is not a claim of registered trademark protection.
 
@@ -28,9 +28,10 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 | [Model connections](docs/model-connections.md) | MCP tools, external model containers and provider APIs |
 | [Container operations](docs/deployment.md) | Packaging, isolation, budgets and recovery |
 | [Delivery plan](docs/roadmap.md) | Ordered milestones and replacement gates |
+| [Test installation](docs/test-installation.md) | Build, credentials, testing and operational limits |
 | [Licensing and independence](docs/legal.md) | Rights, provenance and unresolved clearance |
 
-No production calendar or task system should be switched to this project at the concept stage. All capabilities above are planned, not advertised as working.
+The intended experience above remains the target; only the explicitly listed test-runtime features are implemented. Do not switch a production calendar or task system to this release.
 
 ## Licensing
 

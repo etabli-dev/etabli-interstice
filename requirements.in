@@ -1,0 +1,7 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+mcp>=1.28,<2
+httpx>=0.28,<1
+icalendar>=6,<8
+recurring-ical-events>=3,<4
+defusedxml>=0.7,<1
