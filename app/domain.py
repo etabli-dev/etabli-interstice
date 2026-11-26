@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 from datetime import datetime, timedelta, timezone, time, date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from bisect import insort
+from bisect import insort, bisect_right
 import json
 from typing import List
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
@@ -126,7 +126,12 @@ def schedule(tasks, events, zone="Europe/Berlin", now=None, days=56, previous=No
     now = (now or datetime.now(UTC)).astimezone(UTC)
     now = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
     end = now + timedelta(days=days)
-    occupied = sorted((instant(e["start"]), instant(e["end"])) for e in events if e.get("busy", True))
+    occupied = []
+    for start, stop in sorted((instant(e["start"]), instant(e["end"])) for e in events if e.get("busy", True)):
+        if occupied and start <= occupied[-1][1]:
+            occupied[-1] = (occupied[-1][0], max(stop, occupied[-1][1]))
+        else:
+            occupied.append((start, stop))
     blocks, shortages, finished = [], [], {}
     window_cache = {}
     order = graph_order(tasks)
@@ -210,12 +215,19 @@ def schedule(tasks, events, zone="Europe/Berlin", now=None, days=56, previous=No
         for day_start, day_end in windows:
             start = max(earliest, day_start)
             stop = min(latest, day_end)
+            if start >= stop:
+                continue
             pad = timedelta(minutes=t["buffer"])
             # Each gap is formed from occupied intervals expanded for this task's buffer.
             gaps, cursor = [], start
-            for a, b in occupied:
+            # Busy intervals are disjoint and ordered. Seek directly to this
+            # window instead of scanning every appointment for every task/day.
+            index = max(0, bisect_right(occupied, (start-pad, datetime.max.replace(tzinfo=UTC))) - 1)
+            for a, b in occupied[index:]:
                 a, b = a - pad, b + pad
-                if b <= cursor or a >= stop:
+                if a >= stop or cursor >= stop:
+                    break
+                if b <= cursor:
                     continue
                 if a > cursor:
                     gaps.append((cursor, min(a, stop)))

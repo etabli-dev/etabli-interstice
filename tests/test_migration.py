@@ -1,7 +1,7 @@
 # Copyright 2026 R. Heller
 # SPDX-License-Identifier: AGPL-3.0-only
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 from pathlib import Path
 import sqlite3
@@ -160,6 +160,27 @@ class MigrationTests(unittest.TestCase):
                 self.assertEqual(client.get('/api/v1/status',headers=headers).json()['role'],'read')
                 self.assertEqual(client.post('/api/v1/tasks',headers=headers,json={'title':'Must not be written'}).status_code,403)
                 self.assertEqual(app.state.store.tasks(),[])
+
+    def test_representative_capacity_stays_inside_bounded_worker(self):
+        from app.work import run_job
+        tasks=[dict(Task(title='Synthetic task',minutes=60,buffer=15).model_dump(mode='json'),id=str(i),progress=0) for i in range(2000)]
+        events=[]
+        for i in range(500):
+            start=NOW.replace(hour=8)+timedelta(days=i//8,hours=i%8)
+            events.append({'start':start.isoformat(),'end':(start+timedelta(minutes=15)).isoformat()})
+        plan=run_job('schedule',{'tasks':tasks,'events':events,'now':NOW.isoformat()})
+        self.assertTrue(plan['blocks'])
+        self.assertTrue(plan['shortages'])
+        validate_plan(tasks,events,plan)
+
+    def test_busy_union_keeps_nested_and_touching_events(self):
+        task=dict(Task(title='Work',minutes=30).model_dump(mode='json'),id='work',progress=0)
+        events=[{'start':'2026-11-26T08:00:00+00:00','end':'2026-11-26T11:00:00+00:00'},
+                {'start':'2026-11-26T09:00:00+00:00','end':'2026-11-26T10:00:00+00:00'},
+                {'start':'2026-11-26T11:00:00+00:00','end':'2026-11-26T12:00:00+00:00'}]
+        plan=schedule([task],events,now=NOW)
+        validate_plan([task],events,plan)
+        self.assertEqual(plan['blocks'][0]['start'],'2026-11-26T12:00:00+00:00')
 
 
 if __name__=='__main__':unittest.main()
