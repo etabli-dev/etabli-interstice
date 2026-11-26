@@ -8,9 +8,10 @@ import sys
 
 
 def main():
-    resource.setrlimit(resource.RLIMIT_CPU, (15, 30))
+    resource.setrlimit(resource.RLIMIT_CPU, (15, 40))
     resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    request = json.load(sys.stdin)
     # Bound trusted imports separately from processing untrusted input.
     from .calendars import decode
     from .domain import schedule
@@ -18,8 +19,8 @@ def main():
     from datetime import datetime
     usage = resource.getrusage(resource.RUSAGE_SELF)
     used = math.ceil(usage.ru_utime + usage.ru_stime)
-    resource.setrlimit(resource.RLIMIT_CPU, (used + 5, used + 6))
-    request = json.load(sys.stdin)
+    budget = 15 if request["operation"] == "calendar" else 5
+    resource.setrlimit(resource.RLIMIT_CPU, (used + budget, used + budget + 1))
     try:
         if request["operation"] == "calendar":
             result = decode(**request["payload"])
