@@ -13,7 +13,7 @@ class MutationOutbox {
     return item;
   }
   lock(fn) {
-    if(typeof navigator==='undefined')return fn();
+    if(typeof window==='undefined')return fn();
     if(!navigator.locks)throw new Error('This browser cannot safely coordinate writes. Use a current browser.');
     return navigator.locks.request(this.key,fn);
   }
