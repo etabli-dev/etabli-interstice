@@ -27,3 +27,9 @@ if failure=$(docker exec "$name" python -m app.serve 2>&1); then exit 1; fi
 case "$failure" in *"Another server owns this data directory"*) ;; *) printf '%s\n' "$failure"; exit 1;; esac
 docker exec "$name" python -m app.manage backup /data/interstice.sqlite /data/backup.sqlite
 docker exec "$name" python -m app.manage restore /data/backup.sqlite /data/restored/interstice.sqlite
+# Exercise disposable workers inside the shipped image as well as on the host.
+docker exec -i "$name" python - <<'PYWORK'
+from app.work import run_job
+assert run_job("calendar", {"data": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", "method": "GET", "source": {"id": "check"}}) == []
+assert run_job("schedule", {"tasks": [], "events": [], "now": "2026-11-26T08:00:00+00:00"})["blocks"] == []
+PYWORK
