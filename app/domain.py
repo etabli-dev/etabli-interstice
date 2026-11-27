@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone, time, date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from bisect import insort, bisect_right
 import json
-from typing import List
+from typing import List, Literal, Annotated
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 UTC = timezone.utc
@@ -15,6 +15,10 @@ class Task(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     notes: str = Field(default="", max_length=10000)
     list: str = Field(default="Inbox", min_length=1, max_length=100)
+    category: Literal['discussion', 'writing', 'research', 'software', 'administration', 'security', 'learning', 'practical', 'other'] = 'other'
+    person: str = Field(default='', max_length=200)
+    communication_mode: Literal['', 'meeting', 'phone', 'email', 'video', 'message'] = ''
+    tags: List[Annotated[str, Field(min_length=1, max_length=80)]] = Field(default_factory=lambda: [], max_length=20)
     minutes: int = Field(default=30, ge=1, le=10080)
     priority: int = Field(default=1, ge=0, le=3)
     due: datetime | None = None
@@ -33,6 +37,24 @@ class Task(BaseModel):
     time_zone: str | None = None
     availability: dict[str, List[tuple[int, int]]] | None = None
     date_overrides: dict[str, List[tuple[int, int]]] = Field(default_factory=dict)
+
+    @field_validator('person')
+    @classmethod
+    def clean_person(cls, value):
+        return value.strip()
+
+    @field_validator('tags')
+    @classmethod
+    def clean_tags(cls, values):
+        result, seen = [], set()
+        for value in values:
+            value = value.strip()
+            if not value:
+                raise ValueError('Topic tags cannot be blank')
+            if value.casefold() not in seen:
+                result.append(value)
+                seen.add(value.casefold())
+        return result
 
     @field_validator("due", "earliest", "fixed_start")
     @classmethod

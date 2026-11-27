@@ -63,6 +63,19 @@ class MigrationTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):import_snapshot(src,dst)
             self.assertEqual(len(store.tasks()),1)
 
+    def test_explicit_list_mapping_preserves_source_archive_and_progress(self):
+        with tempfile.TemporaryDirectory() as temp:
+            src,dst=Path(temp)/'export.json',Path(temp)/'mapped.sqlite'
+            data=fixture()
+            original=data['list_lists']['lists'][0]['title']
+            src.write_text(json.dumps(data))
+            report=import_snapshot(src,dst,list_map={original:'Forschung'})
+            self.assertEqual(Store(dst).tasks()[0]['list'],'Forschung')
+            self.assertEqual(Store(dst).tasks()[0]['progress'],20)
+            self.assertEqual(report['list_mapping'],{original:'Forschung'})
+            with sqlite3.connect(dst) as db:
+                self.assertEqual(db.execute('SELECT body FROM migration_snapshot').fetchone()[0],src.read_bytes())
+
     def test_missing_dependency_and_asymmetric_buffers_fail_before_write(self):
         for field,value in [('blockedByIds',['missing']),('bufferAfterMinutes',10)]:
             data=fixture();data['collections'][0]['pages'][0]['items'][0][field]=value

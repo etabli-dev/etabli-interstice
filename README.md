@@ -2,9 +2,9 @@
 
 Make room for the work that matters.
 
-Établi Interstice is a self-hosted scheduling service under development: it places tasks around calendar commitments and explains when there is too much work for the time available. **Établi Focus is the designated mobile companion**; its Interstice adapter is still pending. A browser interface provides the current test workspace.
+Établi Interstice is a self-hosted scheduling service under development: it places tasks around calendar commitments and explains when there is too much work for the time available. **Établi Focus is the designated mobile companion**; its candidate Interstice adapter supports desktop, Android and iOS. A browser interface provides the current test workspace.
 
-**Status: 0.3.0 migration candidate, not yet a production replacement.** The initial runtime supports tasks, deterministic schedule previews, deadlines, dependencies, splitting, fixed blocks, progress receipts, CalDAV/ICS reads, authenticated MCP and an optional external model connection. External calendar writes are absent by design. Private snapshot import, recurring task materialization, availability profiles, overdue reporting and retention of valid plan blocks are implemented. Native recurring-series editing, Focus integration, active-timer reservations, production consumer migration and sustained-operation acceptance remain pending. See [migration and shadow operation](docs/migration.md). No public registry image is published yet; build from source.
+**Status: 0.3.0 migration candidate, not yet a production replacement.** The initial runtime supports tasks, deterministic schedule previews, deadlines, dependencies, splitting, fixed blocks, progress receipts, CalDAV/ICS reads, authenticated MCP and an optional external model connection. External calendar writes are absent by design. Private snapshot import, recurring task materialization, availability profiles, overdue reporting and retention of valid plan blocks are implemented. Native recurring-series editing, physical-device Focus acceptance, active-timer reservations, production consumer migration and sustained-operation acceptance remain pending. See [migration and shadow operation](docs/migration.md). No public registry image is published yet; build from source.
 
 Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGPL-3.0-only**. The working name refers to the spaces between commitments; it is not a claim of registered trademark protection.
 
@@ -17,6 +17,8 @@ Part of the [Établi Suite](https://github.com/etabli-dev). Licensed under **AGP
 - Retain your project manager and automation tools through versioned APIs and an optional MCP adapter.
 - Connect an external model client over MCP, or configure a model API in another container or at a remote provider for natural-language planning.
 - Run one application container with persistent storage, behind your existing HTTPS proxy.
+
+See [task organization](docs/task-organization.md) for the nine action categories, optional discussion details, and explicit list consolidation.
 
 ## Design documents
 

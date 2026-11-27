@@ -199,6 +199,28 @@ class APITests(unittest.TestCase):
             self.assertEqual(self.client.patch('/api/v1/tasks/'+t['id'],json=body,headers={**self.headers,"If-Match":"1"}).status_code,422)
         self.assertEqual(len(self.app.state.store.tasks()),1)
 
+    def test_classification_roundtrip_and_revision_guard(self):
+        body = {"title":"Discuss budget", "list":"Forschung", "category":"discussion", "person":" Alex ",
+                "communication_mode":"phone", "tags":["Budget", "budget", " study "]}
+        row = self.client.post('/api/v1/tasks', json=body, headers=self.headers).json()
+        self.assertEqual(row['person'], 'Alex')
+        self.assertEqual(row['tags'], ['Budget', 'study'])
+        headers = {**self.headers, 'Idempotency-Key':'edit', 'If-Match':str(row['revision'])}
+        changed = self.client.patch('/api/v1/tasks/'+row['id'], json={'communication_mode':'email'}, headers=headers)
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(changed.json()['list'], 'Forschung')
+        self.assertEqual(changed.json()['category'], 'discussion')
+        self.assertEqual(self.client.patch('/api/v1/tasks/'+row['id'], json={'person':'Wrong'},
+            headers={**headers, 'Idempotency-Key':'stale'}).status_code, 409)
+        self.assertEqual(self.client.get('/api/v1/tasks', headers=self.headers).json()['tasks'][0]['communication_mode'], 'email')
+
+    def test_bounded_categories_and_legacy_defaults(self):
+        row = self.client.post('/api/v1/tasks', json={'title':'Legacy'}, headers=self.headers).json()
+        self.assertEqual((row['category'], row['person'], row['tags']), ('other', '', []))
+        for fields in ({'category':'tenth'}, {'communication_mode':'fax'}, {'tags':[' ']}, {'tags':['x'*81]}, {'person':'x'*201}):
+            self.assertEqual(self.client.post('/api/v1/tasks', json={'title':'Invalid', **fields},
+                headers={**self.headers, 'Idempotency-Key':str(uuid.uuid4())}).status_code, 422)
+
     def test_duplicate_credentials_rejected(self):
         with self.assertRaises(RuntimeError):
             create_app({"data":self.tmp.name,"clients":[{"id":"a","token":"a"*40,"role":"admin"},

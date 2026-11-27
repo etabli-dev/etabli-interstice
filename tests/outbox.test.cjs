@@ -23,3 +23,18 @@ test('expired authorization preserves ambiguous action',async()=>{
 test('malformed persisted action stops writes',()=>{
  const db=storage();db.setItem('client','{"version":2}');assert.throws(()=>new Outbox(db,'client',()=>{},()=> 'id'));
 });
+
+test('metadata edit survives a lost response with PATCH and the original revision',async()=>{
+ const db=storage();let first=true;const calls=[];
+ const send=async(...args)=>{calls.push(args);if(first){first=false;throw new Error('lost');}return {revision:2};};
+ const a=new Outbox(db,'edit',send,()=> 'edit-key');
+ await assert.rejects(a.perform('api/v1/tasks/one',{category:'discussion',person:'Alex'},{'If-Match':'1'},'PATCH'));
+ await new Outbox(db,'edit',send,()=> 'unused').retry();
+ assert.deepEqual(calls[0],calls[1]);assert.equal(calls[1][1],'PATCH');assert.equal(db.getItem('edit'),null);
+});
+
+test('definitive revision conflict releases edit intent for fresh confirmation',async()=>{
+ const db=storage();const a=new Outbox(db,'edit',async()=>{throw Object.assign(new Error('Task changed'),{status:409});},()=> 'id');
+ await assert.rejects(a.perform('api/v1/tasks/one',{category:'discussion'},{'If-Match':'1'},'PATCH'));
+ assert.equal(db.getItem('edit'),null);
+});

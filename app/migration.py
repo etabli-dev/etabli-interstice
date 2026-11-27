@@ -154,11 +154,16 @@ def prepare(snapshot, zone='Europe/Berlin', now=None):
     return items, tasks, series, progress
 
 
-def import_snapshot(source, destination, zone='Europe/Berlin'):
+def import_snapshot(source, destination, zone='Europe/Berlin', list_map=None):
     source, destination = Path(source), Path(destination)
     raw = source.read_bytes()
     snapshot = json.loads(raw)
     items, tasks, series, progress = prepare(snapshot, zone)
+    list_map = list_map or {}
+    if not isinstance(list_map, dict) or any(not isinstance(k, str) or not isinstance(v, str) or not v.strip() or len(v) > 100 for k, v in list_map.items()):
+        raise ValueError('List mapping must contain nonempty names of at most 100 characters')
+    for task in tasks + [value['template'] for value in series]:
+        task['list'] = list_map.get(task['list'], task['list'])
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Exclusive creation prevents accidental imports into an existing or live instance.
     fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -187,7 +192,7 @@ def import_snapshot(source, destination, zone='Europe/Berlin'):
                   'imported_standalone_tasks': len(tasks), 'recurring_series': len(series),
                   'stored_tasks_with_occurrences': len(store.tasks()),
                   'credited_minutes': sum(progress.values()), 'calendar_events_archived_only': True,
-                  'production_ready': False}
+                  'production_ready': False, 'list_mapping': list_map}
         return report
     except BaseException:
         for suffix in ('', '-wal', '-shm'):
@@ -200,8 +205,9 @@ def main():
     parser.add_argument('source', type=Path)
     parser.add_argument('--database', type=Path, required=True)
     parser.add_argument('--zone', default='Europe/Berlin')
+    parser.add_argument('--list-map', type=Path, help='Explicit JSON mapping of source list names; source archive remains unchanged')
     args = parser.parse_args()
-    print(json.dumps(import_snapshot(args.source, args.database, args.zone), indent=2))
+    print(json.dumps(import_snapshot(args.source, args.database, args.zone, json.loads(args.list_map.read_text()) if args.list_map else None), indent=2))
 
 
 if __name__ == '__main__':

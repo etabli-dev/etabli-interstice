@@ -16,15 +16,17 @@
 <label for="title">What needs doing?</label><input id="title" required maxlength="300" placeholder="Prepare the next workshop">
 <div class="pair"><div><label for="minutes">Effort · minutes</label><input id="minutes" type="number" min="1" max="10080" value="30" required></div><div><label for="priority">Priority</label><select id="priority"><option value="1">Normal</option><option value="3">Urgent</option><option value="2">High</option><option value="0">Low</option></select></div></div>
 <label for="due">Deadline · your device's local time</label><input id="due" type="datetime-local">
+<label for="task-list">List · work area</label><input id="task-list" list="work-areas" value="Privat" required maxlength="100"><datalist id="work-areas"><option>Lehre</option><option>Klinik</option><option>Forschung</option><option>Ausbildung</option><option>Firma</option><option>Bw</option><option>Privat</option></datalist>
+<div id="new-classification"></div>
 <label for="notes">Notes</label><textarea id="notes" rows="2" maxlength="10000"></textarea>
 <button type="submit">Add to the plan</button><small>Weekdays, 09:00–17:00 in the workspace time zone. Edit advanced constraints through the API.</small>
 </form></section>
 <section class="panel"><h2>Put it in your own words</h2><p id="model-status">Model connection</p><form id="model-form"><label for="prompt">Describe one task</label><textarea id="prompt" rows="3" maxlength="3000" required placeholder="I need 90 minutes to outline a presentation"></textarea><button type="submit">Draft a task</button></form><p class="muted">A draft fills the form above. Review it before adding it.</p></section>
-<section class="panel quiet"><h2>Connected, with boundaries</h2><p>Focus is the planned mobile companion. This initial test build exposes its task and progress API; the mobile adapter is still pending.</p><p><a href="https://github.com/etabli-dev/etabli-interstice">Source & documentation</a> · AGPL-3.0-only</p></section>
+<section class="panel quiet"><h2>Connected, with boundaries</h2><p>Focus is the mobile and desktop companion. Its candidate adapter displays task details and records focused work; physical-device acceptance remains pending.</p><p><a href="https://github.com/etabli-dev/etabli-interstice">Source & documentation</a> · AGPL-3.0-only</p></section>
 </aside>
 <div class="planning"><section class="panel"><div class="heading"><h2>The next seven days</h2><span id="block-count"></span></div><div id="schedule"></div></section>
 <section class="panel" id="shortage-panel" hidden><h2>Work that needs more room</h2><div id="shortages"></div></section>
-<section class="panel"><div class="heading"><h2>Your tasks</h2><span id="task-count"></span></div><div id="tasks"></div></section>
+<section class="panel"><div class="heading"><h2>Your tasks</h2><span id="task-count"></span></div><label for="task-filter">Find by title, list, category, person or topic</label><input id="task-filter" type="search" placeholder="e.g. Alex or Forschung"><label for="category-filter">Category</label><select id="category-filter"><option value="">All categories</option></select><div id="tasks"></div></section>
 </div></div></div>
 </main><footer>Établi Interstice · 0.3.0-candidate · Independent, self-hosted planning.</footer>
 </body></html>
