@@ -13,9 +13,11 @@ def main():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     request = json.load(sys.stdin)
     # Bound trusted imports separately from processing untrusted input.
-    from .calendars import decode
-    from .domain import schedule
-    from .validation import validate_plan
+    if request["operation"] == "calendar":
+        from .calendars import decode
+    elif request["operation"] == "schedule":
+        from .domain import schedule
+        from .validation import validate_plan
     from datetime import datetime, timezone
     usage = resource.getrusage(resource.RUSAGE_SELF)
     used = math.ceil(usage.ru_utime + usage.ru_stime)
