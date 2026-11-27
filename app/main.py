@@ -134,7 +134,7 @@ def create_app(config=None):
 
     @mcp.tool()
     def tasks_list() -> dict:
-        """List tasks in this isolated test instance."""
+        """List tasks and report this instance's runtime mode."""
         return {"tasks": store.tasks(), "mode": mode}
 
     @mcp.tool()
@@ -144,7 +144,7 @@ def create_app(config=None):
 
     @mcp.tool()
     def task_create(task: Task, idempotency_key: str) -> dict:
-        """Create a test task. Requires granted write scope."""
+        """Create a task. Requires granted write scope; shadow mode rejects writes."""
         return store.mutate(require_write(), idempotency_key, "create", task.model_dump(mode="json", exclude_unset=True))
 
     @mcp.tool()
@@ -155,7 +155,7 @@ def create_app(config=None):
 
     @mcp.tool()
     def task_complete(task_id: str, revision: int, idempotency_key: str) -> dict:
-        """Explicitly complete a test task with revision and duplicate protection."""
+        """Explicitly complete a task with revision and duplicate protection."""
         return store.mutate(require_write(), idempotency_key, "complete", {}, ident=task_id, revision=revision)
 
     @mcp.tool()
@@ -333,7 +333,7 @@ def create_app(config=None):
                 'migration': store.migration_status(),
                 "model_configured": bool(gateway and model), "model": model or None,
                 "source": "https://github.com/etabli-dev/etabli-interstice", "version": "0.3.0-candidate",
-                "limitations": ["No production calendar writes", "Recurring series editor pending", "Focus adapter not installed", "Production cutover not qualified"]}
+                "limitations": ["External calendars are read-only", "Structural recurrence editing unavailable", "Active timer reservations unavailable", "Device acceptance is deployment-specific"]}
 
     @app.get('/api/v1/series')
     def series():
