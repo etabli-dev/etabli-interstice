@@ -12,6 +12,7 @@ import hashlib
 import json
 import uuid
 from zoneinfo import ZoneInfo
+from urllib.parse import quote
 
 from .domain import Task, graph_order
 from .migration import local_time, map_task
@@ -228,6 +229,8 @@ class Compat:
                    blockedByIds=[_source_id(value) for value in task["dependencies"]], timeZone=zone,
                    lastModified=modified or raw.get("lastModified") or "1970-01-01T00:00:00+00:00")
         raw.update({key: task.get(key, [] if key == "tags" else "other" if key == "category" else "") for key in _METADATA})
+        if getattr(self.store, 'public_url', None):
+            raw['url'] = self.store.public_url + '/?task=' + quote(task['id'], safe='')
         raw.setdefault("dateCreated", raw["lastModified"])
         raw.setdefault("recurrenceRule", None)
         return raw

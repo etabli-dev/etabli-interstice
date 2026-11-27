@@ -80,6 +80,7 @@ def create_app(config=None):
     if not isinstance(classification_config, dict):
         raise RuntimeError('Invalid classification configuration')
     store = Store(data / "interstice.sqlite", zone, classification_config)
+    store.public_url = public.rstrip('/')
     compat = Compat(store)
     store.compat = compat
     sources_file = cfg.get("sources_file", os.environ.get("INTERSTICE_SOURCES_FILE", ""))

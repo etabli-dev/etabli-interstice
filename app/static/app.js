@@ -21,6 +21,7 @@ function classificationMode(){for(const input of $('new-classification').querySe
 $('auto-classify').onchange=classificationMode;classificationMode();
 for(const [value,label] of Object.entries(categories)){const option=node('option',label);option.value=value;$('category-filter').append(option);}
 $('task-filter').oninput=()=>renderTasks();$('category-filter').onchange=()=>renderTasks();
+$('task-filter').value=new URLSearchParams(location.search).get('task')||'';
 async function api(path, method='GET', body, headers={}) {
   const response = await fetch(path, {method, headers:{'Content-Type':'application/json', ...headers}, body:body === undefined ? undefined : JSON.stringify(body)});
   const result = await response.json();
@@ -64,7 +65,7 @@ async function load() {
 }
 function renderTasks(){
   const query=$('task-filter').value.trim().toLocaleLowerCase(), selected=$('category-filter').value;
-  const tasks=currentTasks.filter(t=>(!selected||(t.category||'other')===selected)&&[t.title,t.list,categories[t.category||'other'],t.person,modes[t.communication_mode],...(t.tags||[])].join(' ').toLocaleLowerCase().includes(query));
+  const tasks=currentTasks.filter(t=>(!selected||(t.category||'other')===selected)&&[t.id,t.title,t.list,categories[t.category||'other'],t.person,modes[t.communication_mode],...(t.tags||[])].join(' ').toLocaleLowerCase().includes(query));
   $('tasks').replaceChildren();$('task-count').textContent=`${tasks.length} shown · ${currentTasks.filter(t=>!t.completed).length} open`;
   for(const t of tasks){
     const row=node('article',undefined,'task'+(t.completed?' done':''));

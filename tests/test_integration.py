@@ -32,6 +32,7 @@ class IntegrationTests(unittest.TestCase):
                         continue
                     self.assertEqual(response.status_code, 200, response.text)
                     self.assertEqual(response.json()['category'], 'administration')
+                    self.assertTrue(response.json()['url'].startswith('http://testserver/?task=etabli%3A'))
                     self.assertEqual(client.post(path, json=body, headers=headers).json(), response.json())
                     self.assertEqual(len(app.state.store.tasks()), 1)
                     native = client.post('/api/v1/tasks', json={'title': 'Rechnung bezahlen', 'category': 'other', 'person': ''},
