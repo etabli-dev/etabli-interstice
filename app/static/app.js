@@ -10,6 +10,8 @@ function classificationForm(parent, task={}) {
     if(choices)for(const [value,text] of Object.entries(choices)){const option=node('option',text);option.value=value;input.append(option);}
     else input.maxLength=key==='person'?200:1619;
     input.value=key==='tags'?(task.tags||[]).join(', '):(task[key]||(key==='category'?'other':''));
+    if(choices)for(const option of input.options)option.defaultSelected=option.selected;
+    else input.defaultValue=input.value;
     wrapper.append(input);parent.append(wrapper);inputs[key]=input;
   }
   return ()=>({category:inputs.category.value,person:inputs.person.value,communication_mode:inputs.communication_mode.value,tags:inputs.tags.value.split(',').map(t=>t.trim()).filter(Boolean)});
