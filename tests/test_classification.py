@@ -115,3 +115,8 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(infer_metadata("Taylor Example | Manuskript schreiben", config=self.config)["person"], "")
         self.assertEqual(infer_metadata("Alex Example | Manuskript schreiben", config=self.config)["person"], "Alex Example")
         self.assertEqual(infer_metadata("Prof. Example | Manuskript schreiben", config=self.config)["person"], "Alex Example")
+
+    def test_partial_name_does_not_duplicate_matched_full_name(self):
+        config = {"people": [{"name": "Alex Example"}, {"name": "Example"}]}
+        self.assertEqual(infer_metadata("Alex Example | Manuskript schreiben", config=config)["person"], "Alex Example")
+        self.assertEqual(infer_metadata("Example | Manuskript schreiben", config=config)["person"], "Example")

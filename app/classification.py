@@ -118,7 +118,11 @@ def _related_people(title, config, named):
     subject = re.split(r"\b(?:cc|bcc|kopie)\s*:", title, maxsplit=1, flags=re.I)[0]
     explicit = list(dict.fromkeys(name for alias, name in named.items() if _title_person(alias, name, subject)))
     if explicit:
-        return explicit
+        # A literal short name and its already-matched full name should not
+        # produce duplicate related people; this does not expand short names.
+        return [name for name in explicit if not any(name.casefold() != other.casefold()
+                and (" " + name.casefold() + " ") in (" " + other.casefold() + " ")
+                for other in explicit)]
     projects = [p for p in _items(config.get("projects"), 300) if isinstance(p, dict)]
     aliases = {}
     for index, project in enumerate(projects):
