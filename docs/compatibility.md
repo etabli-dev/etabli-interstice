@@ -1,0 +1,9 @@
+# Legacy task clients
+
+Authenticated clients can discover the supported legacy contract at `GET /api/v1/compat/flowsavvy/tools` and invoke it through `POST /api/v1/compat/flowsavvy/call` with `{"tool":"list_items","arguments":{"itemType":"task"}}`. These routes operate exclusively on the local store. They never forward a mutation to the original provider.
+
+Writes require an admin credential and a writable runtime mode. Shadow mode rejects them. Send a stable `Idempotency-Key` for each intended mutation and preserve it across uncertain retries; reusing it with different arguments returns a conflict. Raw imported IDs and old list IDs remain accepted, including aliases for consolidated lists. Native REST uses its own prefixed task IDs and revision checks.
+
+The adapter preserves progress receipts and source metadata while supporting task creation, partial updates, completion, reopening, list reads and nonrecurring local event edits. Local events participate in the planner's input revision and busy-time checks. External calendar events remain read-only. Structural recurrence changes, occurrence-specific mutations, asymmetric task buffers and changes through `blocksIds` are rejected explicitly; use predecessor references through `blockedByIds` for supported dependencies. Discover the advertised schemas before invoking tools.
+
+Production mode enables authorized local writes; it does not certify migration readiness. Before selecting it, drain every old writer, reconcile uncertain receipts, capture a final source export, verify import counts and progress, and configure every consumer to use the new route without fallback. Preserve old credentials and snapshots for reconciliation, but do not resume both providers as writable stores. Physical-device acceptance and calendar coverage require separate verification.

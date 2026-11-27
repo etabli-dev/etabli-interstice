@@ -17,10 +17,12 @@ class Conflict(ValueError):
 
 
 class Store:
-    def __init__(self, path, zone="Europe/Berlin"):
+    def __init__(self, path, zone="Europe/Berlin", classification_config=None):
         self.path, self.zone = str(path), zone
+        self.classification_config = classification_config or {}
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
+        self.plan_lock = threading.Lock()
         with self.db() as db:
             db.executescript('''
               PRAGMA journal_mode=WAL;
@@ -94,6 +96,10 @@ class Store:
                 raise KeyError(key)
             return json.loads(row[0])
 
+    def _classify_create(self, raw):
+        from .classification import infer_metadata
+        return {**infer_metadata(raw.get('title', ''), raw.get('notes', ''), config=self.classification_config), **raw}
+
     def mutate(self, client, key, action, payload, ident=None, revision=None):
         if not key or len(key) > 200:
             raise ValueError("A bounded Idempotency-Key is required")
@@ -112,7 +118,7 @@ class Store:
                 raise Conflict("Task changed; refresh before editing")
             if action in ("create", "update", "complete"):
                 raw = {k: v for k, v in (current or {}).items() if k in Task.model_fields}
-                raw.update(payload)
+                raw.update(self._classify_create(payload) if action == 'create' else payload)
                 if action == "complete":
                     raw["completed"] = True
                 task = Task.model_validate(raw).model_dump(mode="json")
@@ -154,11 +160,20 @@ class Store:
 
     def _snapshot(self, db):
         sources = [dict(row) for row in db.execute("SELECT * FROM sources ORDER BY id")]
+        if getattr(self, 'compat', None) is not None:
+            sources.append({'id': 'interstice:native', 'events': json.dumps(self.compat.events(db)),
+                            'synced': datetime.now(timezone.utc).isoformat(), 'error': None})
         tasks = self._tasks(db)
         digest = hashlib.sha256(json.dumps([tasks, [{"id": s["id"], "events": s["events"]} for s in sources], self.zone], sort_keys=True).encode()).hexdigest()
         return tasks, sources, digest
 
     def plan(self, now=None):
+        # Waiting callers recheck the cache after the first calculation finishes.
+        # No SQLite transaction is held while waiting for this per-store lock.
+        with self.plan_lock:
+            return self._plan(now)
+
+    def _plan(self, now=None):
         live = now is None
         now = now or datetime.now(timezone.utc)
         with self.db() as db:

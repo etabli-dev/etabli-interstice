@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Independent hard-constraint checks before accepting a computed plan."""
 from datetime import timedelta
+from bisect import bisect_left
 from zoneinfo import ZoneInfo
 from .domain import instant, working_windows
 
@@ -11,7 +12,15 @@ def validate_plan(tasks, events, plan):
     allocated={t['id']:[] for t in tasks}
     now=instant(plan['calculated_at'])
     horizon=now+timedelta(days=plan['horizon_days'])
-    zone=ZoneInfo(plan['time_zone'])
+    # Parse busy times once. Prefix maxima retain overlapping and nested events:
+    # a conflict exists iff an event starts before the padded block ends and
+    # some such event ends after the padded block starts.
+    busy = sorted((instant(e['start']), instant(e['end']))
+                  for e in events if e.get('busy', True))
+    busy_starts, busy_ends = [], []
+    for start, end in busy:
+        busy_starts.append(start)
+        busy_ends.append(max(end, busy_ends[-1]) if busy_ends else end)
     reserved=[]
     for block in plan['blocks']:
         task=by_id[block['task_id']]
@@ -28,9 +37,9 @@ def validate_plan(tasks, events, plan):
             if not any(a <= start < end <= b for a,b in working_windows(task, local.date(), plan['time_zone'])):
                 raise ValueError('Working window violated')
         pad=timedelta(minutes=task['buffer'])
-        for event in events:
-            if event.get('busy',True) and start-pad<instant(event['end']) and end+pad>instant(event['start']):
-                raise ValueError('Calendar conflict')
+        index = bisect_left(busy_starts, end + pad) - 1
+        if index >= 0 and start - pad < busy_ends[index]:
+            raise ValueError('Calendar conflict')
         allocated[task['id']].append((start,end,minutes))
         reserved.append((start-pad,end+pad))
     reserved.sort()

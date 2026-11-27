@@ -17,6 +17,8 @@ function classificationForm(parent, task={}) {
   return ()=>({category:inputs.category.value,person:inputs.person.value,communication_mode:inputs.communication_mode.value,tags:inputs.tags.value.split(',').map(t=>t.trim()).filter(Boolean)});
 }
 const newClassification=classificationForm($('new-classification'));
+function classificationMode(){for(const input of $('new-classification').querySelectorAll('input,select'))input.disabled=$('auto-classify').checked;}
+$('auto-classify').onchange=classificationMode;classificationMode();
 for(const [value,label] of Object.entries(categories)){const option=node('option',label);option.value=value;$('category-filter').append(option);}
 $('task-filter').oninput=()=>renderTasks();$('category-filter').onchange=()=>renderTasks();
 async function api(path, method='GET', body, headers={}) {
@@ -32,7 +34,7 @@ const clock = date => new Date(date).toLocaleTimeString([], {hour:'2-digit', min
 const daykey = date => new Intl.DateTimeFormat('en-CA',{timeZone:zone, year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(date));
 async function load() {
   const status = await api('api/v1/status'); zone=status.time_zone;
-  $('mode-badge').textContent=status.mode==='shadow'?'READ-ONLY SHADOW':'TEST WORKSPACE';
+  $('mode-badge').textContent=status.mode==='shadow'?'READ-ONLY SHADOW':status.mode==='production'?'WORKSPACE':'TEST WORKSPACE';
   outbox=new MutationOutbox(localStorage,`interstice-outbox:${location.pathname}:${status.client_id}`,api,()=>crypto.randomUUID());
   $('pending-panel').hidden=!outbox.read();
   $('zone').textContent=`Planning in ${zone} · external calendar writes disabled`;
@@ -81,7 +83,7 @@ function renderTasks(){
   if(!tasks.length)$('tasks').append(node('p','No tasks match these filters.','empty'));
 }
 $('login-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{await api('login','POST',{token:$('token').value});$('token').value='';message('');await load();});};
-$('task-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{await outbox.perform('api/v1/tasks',{title:$('title').value,minutes:Number($('minutes').value),priority:Number($('priority').value),due:$('due').value?new Date($('due').value).toISOString():null,notes:$('notes').value,list:$('task-list').value,...newClassification()});e.target.reset();await load();message('Task added. This plan stays inside the test workspace.');});};
+$('task-form').onsubmit=e=>{e.preventDefault();run(e.submitter,async()=>{await outbox.perform('api/v1/tasks',{title:$('title').value,minutes:Number($('minutes').value),priority:Number($('priority').value),due:$('due').value?new Date($('due').value).toISOString():null,notes:$('notes').value,list:$('task-list').value,...($('auto-classify').checked?{}:newClassification())});e.target.reset();classificationMode();await load();message('Task added.');});};
 $('retry-pending').onclick=e=>run(e.target,async()=>{await outbox.retry();await load();message('Pending action confirmed.');});
 $('reload-plan').onclick=e=>run(e.target,load);
 $('refresh').onclick=e=>run(e.target,async()=>{await api('api/v1/calendars/refresh','POST',{});await load();message('Calendar refresh finished. Check source status for any failures.');});

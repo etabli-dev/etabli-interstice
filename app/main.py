@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from .domain import Task
 from .store import Store, Conflict
+from .compat import Compat
 from .calendars import fetch
 from .work import WorkLimit
 
@@ -51,7 +52,7 @@ def create_app(config=None):
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     cfg = dict(config or {})
     mode = cfg.get('mode', os.environ.get('INTERSTICE_MODE', 'test'))
-    if mode not in ('test', 'shadow'):
+    if mode not in ('test', 'shadow', 'production'):
         raise RuntimeError('Unsupported runtime mode')
     data = Path(cfg.get("data", os.environ.get("INTERSTICE_DATA", "/data")))
     zone = cfg.get("zone", os.environ.get("INTERSTICE_ZONE", "Europe/Berlin"))
@@ -72,7 +73,15 @@ def create_app(config=None):
         raise RuntimeError("Duplicate client identities")
     if len({c["token"] for c in clients}) != len(clients):
         raise RuntimeError("Duplicate client credentials")
-    store = Store(data / "interstice.sqlite", zone)
+    classification_file = cfg.get('classification_file', os.environ.get('INTERSTICE_CLASSIFICATION_FILE', ''))
+    classification_config = cfg.get('classification', {})
+    if classification_file:
+        classification_config = json.loads(Path(classification_file).read_text())
+    if not isinstance(classification_config, dict):
+        raise RuntimeError('Invalid classification configuration')
+    store = Store(data / "interstice.sqlite", zone, classification_config)
+    compat = Compat(store)
+    store.compat = compat
     sources_file = cfg.get("sources_file", os.environ.get("INTERSTICE_SOURCES_FILE", ""))
     sources = json.loads(Path(sources_file).read_text()) if sources_file else []
     if len(sources) > 32 or len({s["id"] for s in sources}) != len(sources):
@@ -110,7 +119,7 @@ def create_app(config=None):
             await sync_sources()
             await asyncio.sleep(300)
 
-    mcp = FastMCP("Etabli Interstice test", stateless_http=True, json_response=True,
+    mcp = FastMCP("Etabli Interstice", stateless_http=True, json_response=True,
                   transport_security=TransportSecuritySettings(allowed_hosts=[parsed.netloc, "localhost:*", "127.0.0.1:*", "testserver"],
                                                                 allowed_origins=[origin]))
 
@@ -130,12 +139,12 @@ def create_app(config=None):
     @mcp.tool()
     def schedule_get() -> dict:
         """Preview the deterministic schedule; never writes external calendars."""
-        return store.plan()
+        return {**store.plan(), 'mode': mode}
 
     @mcp.tool()
     def task_create(task: Task, idempotency_key: str) -> dict:
         """Create a test task. Requires granted write scope."""
-        return store.mutate(require_write(), idempotency_key, "create", task.model_dump(mode="json"))
+        return store.mutate(require_write(), idempotency_key, "create", task.model_dump(mode="json", exclude_unset=True))
 
     @mcp.tool()
     def task_progress(task_id: str, session_id: str, minutes: int, idempotency_key: str) -> dict:
@@ -333,9 +342,22 @@ def create_app(config=None):
     def tasks():
         return {"tasks": store.tasks()}
 
+    @app.get("/api/v1/compat/flowsavvy/tools")
+    def compatibility_tools():
+        return compat.tools()
+
+    @app.post("/api/v1/compat/flowsavvy/call")
+    def compatibility_call(body: dict, request: Request):
+        tool = body.get('tool', '')
+        if not isinstance(tool, str):
+            raise ValueError('tool must be a string')
+        write = tool.startswith(('create_', 'update_')) or tool in ('complete_task', 'uncomplete_task')
+        caller = require_write() if write else identity.get()['id']
+        return compat.call(tool, body.get('arguments', {}), caller, request.headers.get('Idempotency-Key'))
+
     @app.post("/api/v1/tasks")
     def create(task: Task, request: Request):
-        return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "create", task.model_dump(mode="json"))
+        return store.mutate(require_write(), request.headers.get("Idempotency-Key"), "create", task.model_dump(mode="json", exclude_unset=True))
 
     @app.patch("/api/v1/tasks/{ident}")
     def update(ident: str, request: Request, body: dict):
@@ -355,7 +377,7 @@ def create_app(config=None):
 
     @app.get("/api/v1/schedule")
     def plan():
-        return store.plan()
+        return {**store.plan(), 'mode': mode}
 
     @app.post("/api/v1/calendars/refresh")
     async def sync():

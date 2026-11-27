@@ -17,7 +17,7 @@
 <div class="pair"><div><label for="minutes">Effort · minutes</label><input id="minutes" type="number" min="1" max="10080" value="30" required></div><div><label for="priority">Priority</label><select id="priority"><option value="1">Normal</option><option value="3">Urgent</option><option value="2">High</option><option value="0">Low</option></select></div></div>
 <label for="due">Deadline · your device's local time</label><input id="due" type="datetime-local">
 <label for="task-list">List · work area</label><input id="task-list" list="work-areas" value="Privat" required maxlength="100"><datalist id="work-areas"><option>Lehre</option><option>Klinik</option><option>Forschung</option><option>Ausbildung</option><option>Firma</option><option>Bw</option><option>Privat</option></datalist>
-<div id="new-classification"></div>
+<label><input type="checkbox" id="auto-classify" checked> Assign category, person, mode and topics automatically</label><div id="new-classification"></div>
 <label for="notes">Notes</label><textarea id="notes" rows="2" maxlength="10000"></textarea>
 <button type="submit">Add to the plan</button><small>Weekdays, 09:00–17:00 in the workspace time zone. Edit advanced constraints through the API.</small>
 </form></section>
